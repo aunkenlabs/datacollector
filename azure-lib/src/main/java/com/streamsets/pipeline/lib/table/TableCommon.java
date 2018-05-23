@@ -30,9 +30,9 @@ public class TableCommon {
       if (e.getErrorCode().equals("TableNotFound")) {
         createTableIfNotExists(tableName);
         insert(tableName, partitionKey, rowKey, content);
-      }
-    } catch (Exception e) {
-      LOG.error("insertAndCreate", e);
+
+      } else
+        throw e;
     }
   }
 

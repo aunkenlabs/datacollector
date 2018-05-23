@@ -126,7 +126,12 @@ public class TableTarget extends BaseTarget {
 
     String tableName = getEvaluatedTableName(record);
     String primaryKeyValue = record.get(partitionKey).getValueAsString();
-    String rowKeyValue = record.get(rowKey).getValueAsString();
+
+    String rowKeyValue;
+    if (rowKey.startsWith("/"))
+      rowKeyValue = record.get(rowKey).getValueAsString();
+    else
+      rowKeyValue = rowKey;
 
     if (conf.createTableIfNotExists)
       client.insertAndCreate(tableName, primaryKeyValue, rowKeyValue, content);
