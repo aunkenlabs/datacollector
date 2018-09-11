@@ -159,6 +159,8 @@ public class HttpProcessor extends SingleLaneProcessor {
       String resolvedUrl = httpClientCommon.getResolvedUrl(conf.resourceUrl, record);
       WebTarget target = httpClientCommon.getClient().target(resolvedUrl);
 
+      LOG.debug("Resolved HTTP Client URL: '{}'",resolvedUrl);
+
       // If the request (headers or body) contain a known sensitive EL and we're not using https then fail the request.
       if (httpClientCommon.requestContainsSensitiveInfo(conf.headers, conf.requestBody) &&
           !target.getUri().getScheme().toLowerCase().startsWith("https")) {
@@ -276,6 +278,8 @@ public class HttpProcessor extends SingleLaneProcessor {
       if (parsedResponse != null) {
         record.set(conf.outputField, parsedResponse.get());
         addResponseHeaders(record, response);
+      } else if (responseBody == null) {
+        throw new OnRecordErrorException(record, Errors.HTTP_34);
       }
       return record;
     } catch (InterruptedException | ExecutionException e) {
@@ -301,15 +305,22 @@ public class HttpProcessor extends SingleLaneProcessor {
    */
   private Record parseResponse(InputStream response) throws StageException {
     Record record = null;
-    try (DataParser parser = parserFactory.getParser("", response, "0")) {
-      // A response may only contain a single record, so we only parse it once.
-      record = parser.parse();
-      if (conf.dataFormat == DataFormat.TEXT) {
-        // Output is placed in a field "/text" so we remove it here.
-        record.set(record.get("/text"));
+    if (conf.httpMethod == HttpMethod.HEAD) {
+      // Head will have no body so can't be parsed.   Return an empty record.
+      record = getContext().createRecord("");
+      record.set(Field.create(new HashMap()));
+
+    } else if (response != null) {
+      try (DataParser parser = parserFactory.getParser("", response, "0")) {
+        // A response may only contain a single record, so we only parse it once.
+        record = parser.parse();
+        if (conf.dataFormat == DataFormat.TEXT) {
+          // Output is placed in a field "/text" so we remove it here.
+          record.set(record.get("/text"));
+        }
+      } catch (IOException | DataParserException e) {
+        errorRecordHandler.onError(Errors.HTTP_00, e.toString(), e);
       }
-    } catch (IOException | DataParserException e) {
-      errorRecordHandler.onError(Errors.HTTP_00, e.toString(), e);
     }
     return record;
   }

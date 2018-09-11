@@ -33,11 +33,13 @@ angular.module('dataCollectorApp.common')
     HOSTED_HELP: 'HOSTED_HELP',
     CONFIGURED_SOURCE: 'CONFIGURED_SOURCE',
     SNAPSHOT_SOURCE: 'SNAPSHOT_SOURCE',
-    USER_PROVIDED: 'USER_PROVIDED',
+    TEST_ORIGIN: 'TEST_ORIGIN',
     STANDALONE: 'STANDALONE',
     CLUSTER: 'CLUSTER',
     CLUSTER_BATCH: 'CLUSTER_BATCH',
+    CLUSTER_EMR_BATCH: 'EMR_BATCH',
     CLUSTER_YARN_STREAMING: 'CLUSTER_YARN_STREAMING',
+    EDGE: 'EDGE',
     CLUSTER_MESOS_STREAMING: 'CLUSTER_MESOS_STREAMING',
     SLAVE: 'SLAVE',
     NON_LIST_MAP_ROOT: 'root',
@@ -57,5 +59,14 @@ angular.module('dataCollectorApp.common')
     LINUX_OS: 'linux',
     WINDOWS_OS: 'windows',
     AMD64_ARCH: 'amd64',
-    ARM_ARCH: 'arm'
+    ARM_ARCH: 'arm',
+    CLUSTER_MODES: [
+      'CLUSTER',
+      'CLUSTER_BATCH',
+      'EMR_BATCH',
+      'CLUSTER_YARN_STREAMING',
+      'CLUSTER_MESOS_STREAMING'
+    ],
+
+    REST_SERVICE_STAGE_NAME: 'com_streamsets_pipeline_stage_origin_restservice_RestServiceDPushSource'
   });

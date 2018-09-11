@@ -15,11 +15,21 @@
  */
 package com.streamsets.datacollector.execution;
 
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.streamsets.datacollector.config.PipelineConfiguration;
 import com.streamsets.datacollector.creation.PipelineConfigBean;
 import com.streamsets.datacollector.credential.CredentialStoresTask;
 import com.streamsets.datacollector.email.EmailSender;
+import com.streamsets.datacollector.event.binding.MessagingDtoJsonMapper;
+import com.streamsets.datacollector.event.binding.MessagingJsonToFromDto;
+import com.streamsets.datacollector.event.dto.PipelineStartEvent;
 import com.streamsets.datacollector.event.handler.remote.RemoteDataCollector;
+import com.streamsets.datacollector.event.json.PipelineStartEventJson;
 import com.streamsets.datacollector.execution.alerts.EmailNotifier;
 import com.streamsets.datacollector.execution.alerts.WebHookNotifier;
 import com.streamsets.datacollector.execution.runner.common.PipelineRunnerException;
@@ -31,16 +41,16 @@ import com.streamsets.datacollector.store.PipelineStoreTask;
 import com.streamsets.datacollector.util.Configuration;
 import com.streamsets.datacollector.util.ContainerError;
 import com.streamsets.datacollector.util.PipelineException;
-import com.streamsets.datacollector.util.ValidationUtil;
 import com.streamsets.datacollector.validation.Issue;
-import com.streamsets.datacollector.validation.Issues;
 import com.streamsets.datacollector.validation.PipelineConfigurationValidator;
 import com.streamsets.lib.security.acl.dto.Acl;
-import com.streamsets.pipeline.api.StageException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.inject.Inject;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -52,15 +62,182 @@ import java.util.concurrent.TimeUnit;
 public abstract  class AbstractRunner implements Runner {
   private static final Logger LOG = LoggerFactory.getLogger(AbstractRunner.class);
 
-  @Inject protected AclStoreTask aclStoreTask;
-  @Inject protected EventListenerManager eventListenerManager;
-  @Inject protected PipelineStoreTask pipelineStore;
-  @Inject protected StageLibraryTask stageLibrary;
-  @Inject protected CredentialStoresTask credentialStoresTask;
-  @Inject protected RuntimeInfo runtimeInfo;
-  @Inject protected Configuration configuration;
-  protected Map<String, Object> runtimeParameters;
+  public static final String RUNTIME_PARAMETERS_ATTR = "RUNTIME_PARAMETERS";
+  public static final String INTERCEPTOR_CONFIGS_ATTR = "INTERCEPTOR_CONFIGS";
 
+  private final String name;
+  private final String rev;
+
+  @Inject AclStoreTask aclStoreTask;
+  @Inject EventListenerManager eventListenerManager;
+  @Inject PipelineStoreTask pipelineStore;
+  @Inject PipelineStateStore pipelineStateStore;
+  @Inject StageLibraryTask stageLibrary;
+  @Inject CredentialStoresTask credentialStoresTask;
+  @Inject RuntimeInfo runtimeInfo;
+  @Inject Configuration configuration;
+
+  // Start Pipeline Context that was used during last start() and will be reused on pipeline retry
+  private StartPipelineContext startPipelineContext;
+
+  public AbstractRunner(String name, String rev) {
+    this.name = name;
+    this.rev = rev;
+  }
+
+  protected AbstractRunner(
+      String name,
+      String rev,
+      RuntimeInfo runtimeInfo,
+      Configuration configuration,
+      PipelineStateStore pipelineStateStore,
+      PipelineStoreTask pipelineStore,
+      StageLibraryTask stageLibrary,
+      EventListenerManager eventListenerManager,
+      AclStoreTask aclStore
+  ) {
+    this(name, rev);
+    this.aclStoreTask = aclStore;
+    this.configuration = configuration;
+    this.runtimeInfo = runtimeInfo;
+    this.pipelineStateStore = pipelineStateStore;
+    this.pipelineStore = pipelineStore;
+    this.stageLibrary = stageLibrary;
+    this.eventListenerManager = eventListenerManager;
+  }
+
+  @Override
+  public String getName() {
+    return name;
+  }
+
+  @Override
+  public String getRev() {
+    return rev;
+  }
+
+  protected AclStoreTask getAclStore() {
+    return aclStoreTask;
+  }
+
+  protected EventListenerManager getEventListenerManager() {
+    return eventListenerManager;
+  }
+
+  protected PipelineStoreTask getPipelineStore() {
+    return pipelineStore;
+  }
+
+  protected PipelineStateStore getPipelineStateStore() {
+    return pipelineStateStore;
+  }
+
+  protected StageLibraryTask getStageLibrary() {
+    return stageLibrary;
+  }
+
+  protected CredentialStoresTask getCredentialStores() {
+    return credentialStoresTask;
+  }
+
+  protected RuntimeInfo getRuntimeInfo() {
+    return runtimeInfo;
+  }
+
+  protected Configuration getConfiguration() {
+    return configuration;
+  }
+
+  @Override
+  public PipelineConfiguration getPipelineConfiguration() throws PipelineException {
+    return pipelineStore.load(getName(), getRev());
+  }
+
+  @Override
+  public PipelineState getState() throws PipelineStoreException {
+    return pipelineStateStore.getState(getName(), getRev());
+  }
+
+  @Override
+  public List<PipelineState> getHistory() throws PipelineStoreException {
+    return pipelineStateStore.getHistory(getName(), getRev(), false);
+  }
+
+  @Override
+  public void deleteHistory() {
+    pipelineStateStore.deleteHistory(getName(), getRev());
+  }
+
+  @Override
+  public Map<String, Object> createStateAttributes() throws PipelineStoreException {
+    Map<String, Object> attributes = new HashMap<>();
+    attributes.put(RUNTIME_PARAMETERS_ATTR, startPipelineContext.getRuntimeParameters());
+
+    List<String> interceptors = new ArrayList<>();
+    try {
+      for(PipelineStartEvent.InterceptorConfiguration config : startPipelineContext.getInterceptorConfigurations()) {
+        interceptors.add(MessagingJsonToFromDto.INSTANCE.serialize(
+          MessagingDtoJsonMapper.INSTANCE.toInterceptorConfigurationJson(config)
+        ));
+      }
+    } catch (JsonProcessingException e) {
+      throw new PipelineStoreException(ContainerError.CONTAINER_0214, e);
+    }
+    attributes.put(INTERCEPTOR_CONFIGS_ATTR, interceptors);
+
+    // We're persisting information whether this is remote pipeline in the state file rather then in some metadata file
+    // and hence we need to transition that information from previous state.
+    Map<String, Object> oldAttributes = getState().getAttributes();
+    if(oldAttributes != null && oldAttributes.containsKey(RemoteDataCollector.IS_REMOTE_PIPELINE)) {
+      attributes.put(RemoteDataCollector.IS_REMOTE_PIPELINE, oldAttributes.get(RemoteDataCollector.IS_REMOTE_PIPELINE));
+    }
+
+    return attributes;
+  }
+
+  protected void setStartPipelineContext(StartPipelineContext context) {
+    this.startPipelineContext = context;
+  }
+
+  @VisibleForTesting
+  public StartPipelineContext getStartPipelineContext() {
+    return startPipelineContext;
+  }
+
+  @VisibleForTesting
+  public StartPipelineContext loadStartPipelineContextFromState(String user) throws PipelineStoreException {
+    PipelineState pipelineState = getState();
+    Map<String, Object> attributes = pipelineState.getAttributes();
+    Map<String, Object> runtimeParameters = null;
+    List<PipelineStartEvent.InterceptorConfiguration> interceptors = null;
+
+    if (attributes != null && attributes.containsKey(RUNTIME_PARAMETERS_ATTR)) {
+      runtimeParameters = (Map<String, Object>) attributes.get(RUNTIME_PARAMETERS_ATTR);
+    }
+
+    if(attributes != null && attributes.containsKey(INTERCEPTOR_CONFIGS_ATTR)) {
+      TypeReference<PipelineStartEventJson.InterceptorConfigurationJson> typeRef = new TypeReference<PipelineStartEventJson.InterceptorConfigurationJson>() {
+      };
+
+      try {
+        interceptors = new ArrayList<>();
+        for (String jsonConfig : (List<String>) attributes.get(INTERCEPTOR_CONFIGS_ATTR)) {
+          PipelineStartEventJson.InterceptorConfigurationJson config = MessagingJsonToFromDto.INSTANCE.deserialize(jsonConfig, typeRef);
+          interceptors.add(MessagingDtoJsonMapper.INSTANCE.asInterceptorConfigurationDto(config));
+        }
+      } catch (IOException e) {
+        throw new PipelineStoreException(ContainerError.CONTAINER_0214, e);
+      }
+    }
+
+    StartPipelineContext newContext = new StartPipelineContextBuilder(user)
+      .withRuntimeParameters(runtimeParameters)
+      .withInterceptorConfigurations(interceptors)
+      .build();
+
+    setStartPipelineContext(newContext);
+    return newContext;
+  }
 
   protected PipelineConfiguration getPipelineConf(String name, String rev) throws PipelineException {
     PipelineConfiguration load = pipelineStore.load(name, rev);
@@ -151,7 +328,7 @@ public abstract  class AbstractRunner implements Runner {
           rev,
           pipelineConfigBean,
           runtimeInfo,
-          runtimeParameters
+          startPipelineContext.getRuntimeParameters()
       );
       eventListenerManager.addStateEventListener(webHookNotifier);
     }
@@ -164,7 +341,6 @@ public abstract  class AbstractRunner implements Runner {
   }
 
   protected ScheduledFuture<Void> scheduleForRetries(
-      String user,
       ScheduledExecutorService runnerExecutor
   ) throws PipelineStoreException {
     long delay = 0;
@@ -173,17 +349,13 @@ public abstract  class AbstractRunner implements Runner {
     if (retryTimeStamp > currentTime) {
       delay = retryTimeStamp - currentTime;
     }
+    Preconditions.checkNotNull(startPipelineContext, "Can't retry pipeline, previous start context was not saved");
     LOG.info("Scheduling retry in '{}' milliseconds", delay);
     return runnerExecutor.schedule(() -> {
       LOG.info("Starting the runner now");
-      prepareForStart(user, runtimeParameters);
-      start(user, runtimeParameters);
+      prepareForStart(startPipelineContext);
+      start(startPipelineContext);
       return null;
     }, delay, TimeUnit.MILLISECONDS);
-  }
-
-  @Override
-  public void start(String user) throws PipelineException, StageException {
-    start(user, null);
   }
 }

@@ -373,6 +373,14 @@ public abstract class AbstractTableJdbcSource extends BasePushSource {
             JdbcUtil.generateNoMoreDataEvent(getContext());
           }
         }
+
+        // This loop is only a checker for isStopped() -> hence running it as fast as possible leads to high CPU
+        // usage even for no-data passing through use case. We're currently hard coding the sleep for few milliseconds.
+        try {
+          Thread.sleep(100);
+        } catch (InterruptedException e) {
+          LOG.debug("Interrupted wait");
+        }
       }
 
       for (Future future : allFutures) {
@@ -420,7 +428,7 @@ public abstract class AbstractTableJdbcSource extends BasePushSource {
         if (cause != null && cause instanceof StageException) {
           throw (StageException) cause;
         } else {
-          LOG.error("Internal Error. {}", e);
+          LOG.error("Internal Error", e);
           throw new StageException(JdbcErrors.JDBC_75, e.toString());
         }
       }
@@ -473,7 +481,7 @@ public abstract class AbstractTableJdbcSource extends BasePushSource {
     }
   }
 
-  protected Map<String, String> getOffsets() {
+  public Map<String, String> getOffsets() {
     return offsets;
   }
 

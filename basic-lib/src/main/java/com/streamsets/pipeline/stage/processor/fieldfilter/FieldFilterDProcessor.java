@@ -36,13 +36,15 @@ import java.util.List;
     label="Field Remover",
     description="Removes fields from a record",
     icon="filter.png",
-    onlineHelpRefUrl ="index.html#datacollector/UserGuide/Processors/FieldRemover.html#task_c1j_btr_wq",
+    onlineHelpRefUrl ="index.html?contextID=task_c1j_btr_wq",
     execution = {
         ExecutionMode.STANDALONE,
         ExecutionMode.CLUSTER_BATCH,
         ExecutionMode.CLUSTER_YARN_STREAMING,
         ExecutionMode.CLUSTER_MESOS_STREAMING,
-        ExecutionMode.EDGE
+        ExecutionMode.EDGE,
+        ExecutionMode.EMR_BATCH
+
     }
 )
 @ConfigGroups(Groups.class)

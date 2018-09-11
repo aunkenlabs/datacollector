@@ -18,6 +18,7 @@ package com.streamsets.datacollector.runner;
 import com.codahale.metrics.MetricRegistry;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
+import com.streamsets.datacollector.config.ConfigDefinition;
 import com.streamsets.datacollector.config.MemoryLimitConfiguration;
 import com.streamsets.datacollector.email.EmailSender;
 import com.streamsets.datacollector.lineage.LineageEventImpl;
@@ -58,7 +59,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class StageContext extends ProtoContext implements Source.Context, PushSource.Context, Target.Context, Processor.Context {
+public class StageContext extends ProtoContext implements
+    Source.Context, PushSource.Context, Target.Context, Processor.Context {
+  private static final String JOB_ID = "JOB_ID";
   private final int runnerId;
   private final List<Stage.Info> pipelineInfo;
   private final Stage.UserContext userContext;
@@ -69,6 +72,7 @@ public class StageContext extends ProtoContext implements Source.Context, PushSo
   private ErrorSink errorSink;
   private EventSink eventSink;
   private ProcessedSink processedSink;
+  private SourceResponseSink sourceResponseSink;
   private long lastBatchTime;
   private final long pipelineMaxMemory;
   private final ExecutionMode executionMode;
@@ -82,6 +86,7 @@ public class StageContext extends ProtoContext implements Source.Context, PushSo
   private PipelineFinisherDelegate pipelineFinisherDelegate;
   private RuntimeInfo runtimeInfo;
   private final Map services;
+  private final boolean isErrorStage;
 
   //for SDK
   public StageContext(
@@ -161,6 +166,9 @@ public class StageContext extends ProtoContext implements Source.Context, PushSo
     this.sharedRunnerMap = new ConcurrentHashMap<>();
     this.runtimeInfo = runtimeInfo;
     this.services = services;
+    this.isErrorStage = false;
+
+    this.sourceResponseSink = new SourceResponseSink();
 
     // sample all records while testing
     this.startTime = System.currentTimeMillis();
@@ -177,7 +185,11 @@ public class StageContext extends ProtoContext implements Source.Context, PushSo
       int runnerId,
       boolean isPreview,
       MetricRegistry metrics,
-      StageRuntime stageRuntime,
+      List<ConfigDefinition> configDefinitions,
+      OnRecordError onRecordError,
+      List<String> outputLanes,
+      Map<String, Object> constants,
+      Stage.Info stageInfo,
       long pipelineMaxMemory,
       ExecutionMode executionMode,
       DeliveryGuarantee deliveryGuarantee,
@@ -187,18 +199,19 @@ public class StageContext extends ProtoContext implements Source.Context, PushSo
       Map<String, Object> sharedRunnerMap,
       long startTime,
       LineagePublisherDelegator lineagePublisherDelegator,
-      Map<Class, ServiceRuntime> services
+      Map<Class, ServiceRuntime> services,
+      boolean isErrorStage
   ) {
     super(
       configuration,
-      getConfigToElDefMap(stageRuntime.getDefinition().getConfigDefinitions()),
-      stageRuntime.getConstants(),
+      getConfigToElDefMap(configDefinitions),
+      constants,
       emailSender,
       metrics,
       pipelineId,
       rev,
       runnerId,
-      stageRuntime.getInfo().getInstanceName(),
+      stageInfo.getInstanceName(),
       stageType,
       null,
       runtimeInfo.getResourcesDir()
@@ -208,9 +221,9 @@ public class StageContext extends ProtoContext implements Source.Context, PushSo
     this.userContext = userContext;
     this.runnerId = runnerId;
     this.isPreview = isPreview;
-    this.stageInfo = stageRuntime.getInfo();
-    this.outputLanes = ImmutableList.copyOf(stageRuntime.getConfiguration().getOutputLanes());
-    onRecordError = stageRuntime.getOnRecordError();
+    this.stageInfo = stageInfo;
+    this.outputLanes = ImmutableList.copyOf(outputLanes);
+    this.onRecordError = onRecordError;
     this.pipelineMaxMemory = pipelineMaxMemory;
     this.executionMode = executionMode;
     this.deliveryGuarantee = deliveryGuarantee;
@@ -220,6 +233,7 @@ public class StageContext extends ProtoContext implements Source.Context, PushSo
     this.startTime = startTime;
     this.lineagePublisherDelegator = lineagePublisherDelegator;
     this.services = services;
+    this.isErrorStage = isErrorStage;
   }
 
   @Override
@@ -324,6 +338,15 @@ public class StageContext extends ProtoContext implements Source.Context, PushSo
     processedSink = sink;
   }
 
+  // for SDK
+  public SourceResponseSink getSourceResponseSink() {
+    return sourceResponseSink;
+  }
+
+  public void setSourceResponseSink(SourceResponseSink sourceResponseSink) {
+    this.sourceResponseSink = sourceResponseSink;
+  }
+
   ReportErrorDelegate reportErrorDelegate;
   public void setReportErrorDelegate(ReportErrorDelegate delegate) {
     this.reportErrorDelegate = delegate;
@@ -386,12 +409,16 @@ public class StageContext extends ProtoContext implements Source.Context, PushSo
   }
 
   private void toError(Record record, ErrorMessage errorMessage) {
+    String jobId = (String) getPipelineConstants().get(JOB_ID);
     RecordImpl recordImpl = ((RecordImpl) record).clone();
     if (recordImpl.isInitialRecord()) {
       recordImpl.getHeader().setSourceRecord(recordImpl);
       recordImpl.setInitialRecord(false);
     }
     recordImpl.getHeader().setError(stageInfo.getInstanceName(), stageInfo.getLabel(), errorMessage);
+    if (jobId != null) {
+      recordImpl.getHeader().setErrorJobId(jobId);
+    }
     errorSink.addRecord(stageInfo.getInstanceName(), recordImpl);
   }
 
@@ -408,6 +435,11 @@ public class StageContext extends ProtoContext implements Source.Context, PushSo
   @Override
   public boolean isStopped() {
     return stop;
+  }
+
+  @Override
+  public boolean isErrorStage() {
+    return isErrorStage;
   }
 
   @Override
@@ -480,6 +512,11 @@ public class StageContext extends ProtoContext implements Source.Context, PushSo
       recordImpl.setInitialRecord(false);
     }
     eventSink.addEvent(stageInfo.getInstanceName(), recordImpl);
+  }
+
+  @Override
+  public void toSourceResponse(Record record) {
+    sourceResponseSink.addResponse(record);
   }
 
   @Override

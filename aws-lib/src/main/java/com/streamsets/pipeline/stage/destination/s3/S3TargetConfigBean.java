@@ -19,13 +19,11 @@ import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.ConfigDefBean;
 import com.streamsets.pipeline.api.Stage;
 import com.streamsets.pipeline.api.ValueChooserModel;
-import com.streamsets.pipeline.config.DataFormat;
+import com.streamsets.pipeline.api.service.dataformats.DataFormatGeneratorService;
 import com.streamsets.pipeline.config.TimeZoneChooserValues;
 import com.streamsets.pipeline.lib.el.RecordEL;
 import com.streamsets.pipeline.lib.el.TimeEL;
 import com.streamsets.pipeline.lib.el.TimeNowEL;
-import com.streamsets.pipeline.lib.generator.DataGeneratorFactory;
-import com.streamsets.pipeline.stage.destination.lib.DataGeneratorFormatConfig;
 import com.streamsets.pipeline.stage.lib.aws.ProxyConfig;
 import com.streamsets.pipeline.stage.lib.aws.TransferManagerConfig;
 
@@ -106,21 +104,9 @@ public class S3TargetConfigBean {
       description = "Suffix for object names that will be uploaded on Amazon S3. e.g.'txt'",
       label = "Object Name Suffix",
       displayPosition = 220,
-      group = "S3",
-      dependsOn = "dataFormat",
-      triggeredByValue = {"TEXT", "JSON", "DELIMITED", "AVRO", "BINARY", "PROTOBUF", "SDC_JSON"}
+      group = "S3"
   )
   public String fileNameSuffix;
-
-  @ConfigDef(
-    required = true,
-    type = ConfigDef.Type.MODEL,
-    label = "Data Format",
-    displayPosition = 1,
-    group = "DATA_FORMAT"
-  )
-  @ValueChooserModel(DataFormatChooserValues.class)
-  public DataFormat dataFormat;
 
   @ConfigDef(
     required = true,
@@ -128,22 +114,19 @@ public class S3TargetConfigBean {
     defaultValue = "false",
     label = "Compress with gzip",
     displayPosition = 230,
-    group = "S3",
-    dependsOn = "dataFormat",
-    triggeredByValue = {"TEXT", "JSON", "DELIMITED", "AVRO", "BINARY", "PROTOBUF", "SDC_JSON"}
+    group = "S3"
   )
   public boolean compress;
 
-  @ConfigDefBean(groups = {"S3"})
-  public DataGeneratorFormatConfig dataGeneratorFormatConfig;
-
   public List<Stage.ConfigIssue> init(Stage.Context context, List<Stage.ConfigIssue> issues) {
+    DataFormatGeneratorService generatorService = context.getService(DataFormatGeneratorService.class);
+
     // Don't use amazon s3 client for file transfer error retries (Setting maxErrorRetries to 0)
     // (SDC will retry the file transfer based on AT_LEAST_ONCE/AT_MOST_ONCE SEMANTICS)
-    s3Config.init(context, S3_CONFIG_PREFIX, proxyConfig, issues, (dataFormat == DataFormat.WHOLE_FILE)? 0 : -1);
+    s3Config.init(context, S3_CONFIG_PREFIX, proxyConfig, issues, generatorService.isWholeFileFormat() ? 0 : -1);
 
     //File prefix should not be empty for non whole file format.
-    if (dataFormat != DataFormat.WHOLE_FILE && (fileNamePrefix == null || fileNamePrefix.isEmpty())) {
+    if (!generatorService.isWholeFileFormat() && (fileNamePrefix == null || fileNamePrefix.isEmpty())) {
       issues.add(
           context.createConfigIssue(
               Groups.S3.getLabel(),
@@ -164,27 +147,10 @@ public class S3TargetConfigBean {
       );
     }
 
-    dataGeneratorFormatConfig.init(
-        context,
-        dataFormat,
-        Groups.S3.name(),
-        S3_TARGET_CONFIG_BEAN_PREFIX + "dataGeneratorFormatConfig",
-        issues
-    );
-
-    if(issues.size() == 0) {
-      generatorFactory = dataGeneratorFormatConfig.getDataGeneratorFactory();
-    }
     return issues;
   }
 
   public void destroy() {
     s3Config.destroy();
-  }
-
-  private DataGeneratorFactory generatorFactory;
-
-  public DataGeneratorFactory getGeneratorFactory() {
-    return generatorFactory;
   }
 }

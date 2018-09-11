@@ -78,7 +78,7 @@ public class KafkaTargetConfig {
   @ValueChooserModel(ProducerDataFormatChooserValues.class)
   public DataFormat dataFormat;
 
-  @ConfigDefBean
+  @ConfigDefBean(groups = {"DATA_FORMAT"})
   public DataGeneratorFormatConfig dataGeneratorFormatConfig = new DataGeneratorFormatConfig();
 
   @ConfigDef(
@@ -669,10 +669,12 @@ public class KafkaTargetConfig {
           }
           //Never seen this topic name before
           try {
+            Map<String, Object> kafkaConfigs = new HashMap<>(kafkaProducerConfigs);
+            kafkaValidationUtil.createTopicIfNotExists(result, kafkaConfigs, metadataBrokerList);
             int partitionCount = kafkaValidationUtil.getPartitionCount(
                 metadataBrokerList,
                 result,
-                new HashMap<String, Object>(kafkaProducerConfigs),
+                kafkaConfigs,
                 messageSendMaxRetries,
                 retryBackoffMs
             );

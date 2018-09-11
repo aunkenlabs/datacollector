@@ -31,6 +31,7 @@ import com.streamsets.pipeline.api.el.ELEval;
 import com.streamsets.pipeline.api.el.ELEvalException;
 import com.streamsets.pipeline.api.el.ELVars;
 import com.streamsets.pipeline.api.impl.Utils;
+import com.streamsets.pipeline.api.service.dataformats.WholeFileChecksumAlgorithm;
 import com.streamsets.pipeline.config.ChecksumAlgorithm;
 import com.streamsets.pipeline.lib.event.EventCreator;
 import com.streamsets.pipeline.lib.generator.StreamCloseEventHandler;
@@ -228,7 +229,7 @@ public final class FileRefUtil {
         )
     );
   }
-  public static ELEval createElEvalForRateLimit(Stage.Context context) {
+  public static ELEval createElEvalForRateLimit(ProtoConfigurableEntity.ELContext context) {
     return context.createELEval("rateLimit");
   }
 

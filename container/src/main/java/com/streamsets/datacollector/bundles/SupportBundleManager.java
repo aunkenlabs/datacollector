@@ -34,6 +34,7 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
+import com.streamsets.datacollector.blobstore.BlobStoreTask;
 import com.streamsets.datacollector.execution.PipelineStateStore;
 import com.streamsets.datacollector.execution.SnapshotStore;
 import com.streamsets.datacollector.json.ObjectMapperFactory;
@@ -69,11 +70,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -98,6 +101,7 @@ public class SupportBundleManager extends AbstractTask implements BundleContext 
   private final PipelineStoreTask pipelineStore;
   private final PipelineStateStore stateStore;
   private final SnapshotStore snapshotStore;
+  private final BlobStoreTask blobStore;
   private final RuntimeInfo runtimeInfo;
   private final BuildInfo buildInfo;
 
@@ -105,6 +109,7 @@ public class SupportBundleManager extends AbstractTask implements BundleContext 
    * List describing auto discovered content generators.
    */
   private List<BundleContentGeneratorDefinition> definitions;
+  private Map<String, BundleContentGeneratorDefinition> definitionMap;
 
   /**
    * Redactor to remove sensitive data.
@@ -118,6 +123,7 @@ public class SupportBundleManager extends AbstractTask implements BundleContext 
     PipelineStoreTask pipelineStore,
     PipelineStateStore stateStore,
     SnapshotStore snapshotStore,
+    BlobStoreTask blobStore,
     RuntimeInfo runtimeInfo,
     BuildInfo buildInfo
   ) {
@@ -127,6 +133,7 @@ public class SupportBundleManager extends AbstractTask implements BundleContext 
     this.pipelineStore = pipelineStore;
     this.stateStore = stateStore;
     this.snapshotStore = snapshotStore;
+    this.blobStore = blobStore;
     this.runtimeInfo = runtimeInfo;
     this.buildInfo = buildInfo;
   }
@@ -176,6 +183,11 @@ public class SupportBundleManager extends AbstractTask implements BundleContext 
 
     definitions = builder.build();
 
+    definitionMap = new HashMap<>();
+    for (BundleContentGeneratorDefinition definition : definitions) {
+      definitionMap.put(definition.getId(), definition);
+    }
+
     // Create shared instance of redactor
     try {
       redactor = StringRedactor.createFromJsonFile(runtimeInfo.getConfigDir() + "/" + Constants.REDACTOR_CONFIG);
@@ -195,17 +207,27 @@ public class SupportBundleManager extends AbstractTask implements BundleContext 
   /**
    * Return InputStream from which a new generated resource bundle can be retrieved.
    */
-  public SupportBundle generateNewBundle(List<String> generators) throws IOException {
+  public SupportBundle generateNewBundle(List<String> generators, BundleType bundleType) throws IOException {
+    List<BundleContentGeneratorDefinition> defs = getRequestedDefinitions(generators);
+    return generateNewBundleFromInstances(defs.stream().map(BundleContentGeneratorDefinition::createInstance).collect(Collectors.toList()), bundleType);
+  }
+
+  /**
+   * Return InputStream from which a new generated resource bundle can be retrieved.
+   */
+  public SupportBundle generateNewBundleFromInstances(
+    List<BundleContentGenerator> generators,
+    BundleType bundleType
+  ) throws IOException {
     PipedInputStream inputStream = new PipedInputStream();
     PipedOutputStream outputStream = new PipedOutputStream();
     inputStream.connect(outputStream);
     ZipOutputStream zipOutputStream = new ZipOutputStream(outputStream);
 
-    List<BundleContentGeneratorDefinition> useDefs = getRequestedDefinitions(generators);
-    executor.submit(() -> generateNewBundleInternal(useDefs, zipOutputStream));
+    executor.submit(() -> generateNewBundleInternal(generators, bundleType, zipOutputStream));
 
-    String bundleName = generateBundleName();
-    String bundleKey = generateBundleDate() + "/" + bundleName;
+    String bundleName = generateBundleName(bundleType);
+    String bundleKey = generateBundleDate(bundleType) + "/" + bundleName;
 
     return new SupportBundle(
       bundleKey,
@@ -217,7 +239,24 @@ public class SupportBundleManager extends AbstractTask implements BundleContext 
   /**
    * Instead of providing support bundle directly to user, upload it to StreamSets backend services.
    */
-  public void uploadNewBundle(List<String> generators) throws IOException {
+  public void uploadNewBundle(List<String> generators, BundleType bundleType) throws IOException {
+    List<BundleContentGeneratorDefinition> defs = getRequestedDefinitions(generators);
+    uploadNewBundleFromInstances(
+      defs.stream()
+        .map(BundleContentGeneratorDefinition::createInstance)
+        .collect(Collectors.toList()
+        ),
+      bundleType
+    );
+  }
+
+  /**
+   * Instead of providing support bundle directly to user, upload it to StreamSets backend services.
+   */
+  public void uploadNewBundleFromInstances(List<BundleContentGenerator> generators, BundleType bundleType) throws IOException {
+    // Generate bundle
+    SupportBundle bundle = generateNewBundleFromInstances(generators, bundleType);
+
     boolean enabled = configuration.get(Constants.UPLOAD_ENABLED, Constants.DEFAULT_UPLOAD_ENABLED);
     String accessKey = configuration.get(Constants.UPLOAD_ACCESS, Constants.DEFAULT_UPLOAD_ACCESS);
     String secretKey = configuration.get(Constants.UPLOAD_SECRET, Constants.DEFAULT_UPLOAD_SECRET);
@@ -234,19 +273,16 @@ public class SupportBundleManager extends AbstractTask implements BundleContext 
     s3Client.setRegion(Region.getRegion(Regions.US_WEST_2));
 
     // Object Metadata
-    ObjectMetadata metadata = new ObjectMetadata();
-    for(Map.Entry<Object, Object> entry: getMetadata().entrySet()) {
-      metadata.addUserMetadata((String)entry.getKey(), (String)entry.getValue());
+    ObjectMetadata s3Metadata = new ObjectMetadata();
+    for(Map.Entry<Object, Object> entry: getMetadata(bundleType).entrySet()) {
+      s3Metadata.addUserMetadata((String)entry.getKey(), (String)entry.getValue());
     }
-
-    // Generate bundle
-    SupportBundle bundle = generateNewBundle(generators);
 
     // Uploading part by part
     LOG.info("Initiating multi-part support bundle upload");
     List<PartETag> partETags = new ArrayList<>();
     InitiateMultipartUploadRequest initRequest = new InitiateMultipartUploadRequest(bucket, bundle.getBundleKey());
-    initRequest.setObjectMetadata(metadata);
+    initRequest.setObjectMetadata(s3Metadata);
     InitiateMultipartUploadResult initResponse = s3Client.initiateMultipartUpload(initRequest);
 
     try {
@@ -303,7 +339,7 @@ public class SupportBundleManager extends AbstractTask implements BundleContext 
     }
 
     try {
-      uploadNewBundle(Collections.emptyList());
+      uploadNewBundle(Collections.emptyList(), BundleType.SUPPORT);
     } catch (IOException e) {
       LOG.error("Failed to upload error bundle", e);
     }
@@ -342,17 +378,21 @@ public class SupportBundleManager extends AbstractTask implements BundleContext 
     }
   }
 
-  private String generateBundleDate() {
+  private String generateBundleDate(BundleType bundleType) {
     SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
-    return dateFormat.format(new Date());
+    return bundleType.getPathPrefix() + dateFormat.format(new Date());
   }
 
-  private String generateBundleName() {
+  private String generateBundleName(BundleType bundle) {
     SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd_HH.mm.ss");
-    StringBuilder builder = new StringBuilder("bundle_");
-    builder.append(getCustomerId());
-    builder.append("_");
-    builder.append(runtimeInfo.getId());
+    StringBuilder builder = new StringBuilder(bundle.getNamePrefix());
+    if(bundle.isAnonymizeMetadata()) {
+      builder.append(UUID.randomUUID().toString());
+    } else {
+      builder.append(getCustomerId());
+      builder.append("_");
+      builder.append(runtimeInfo.getId());
+    }
     builder.append("_");
     builder.append(dateFormat.format(new Date()));
     builder.append(".zip");
@@ -363,7 +403,7 @@ public class SupportBundleManager extends AbstractTask implements BundleContext 
   /**
    * Orchestrate what definitions should be used for this bundle.
    *
-   * Either get all definittions that should be used by default or only those specified in the generators argument.
+   * Either get all definitions that should be used by default or only those specified in the generators argument.
    */
   private List<BundleContentGeneratorDefinition> getRequestedDefinitions(List<String> generators) {
     Stream<BundleContentGeneratorDefinition> stream = definitions.stream();
@@ -378,13 +418,18 @@ public class SupportBundleManager extends AbstractTask implements BundleContext 
       .collect(Collectors.toList());
   }
 
-  private void generateNewBundleInternal(List<BundleContentGeneratorDefinition> defs, ZipOutputStream zipStream) {
+  private void generateNewBundleInternal(
+      List<BundleContentGenerator> generators,
+      BundleType bundleType,
+      ZipOutputStream zipStream
+  ) {
     try {
-      Properties generators = new Properties();
+      Properties runGenerators = new Properties();
       Properties failedGenerators = new Properties();
 
       // Let each individual content generator run to generate it's content
-      for(BundleContentGeneratorDefinition definition : defs) {
+      for(BundleContentGenerator generator : generators) {
+        BundleContentGeneratorDefinition definition = definitionMap.get(generator.getClass().getSimpleName());
         BundleWriterImpl writer = new BundleWriterImpl(
           definition.getKlass().getName(),
           redactor,
@@ -393,9 +438,8 @@ public class SupportBundleManager extends AbstractTask implements BundleContext 
 
         try {
           LOG.debug("Generating content with {} generator", definition.getKlass().getName());
-          BundleContentGenerator contentGenerator = definition.getKlass().newInstance();
-          contentGenerator.generateContent(this, writer);
-          generators.put(definition.getKlass().getName(), String.valueOf(definition.getVersion()));
+          generator.generateContent(this, writer);
+          runGenerators.put(definition.getKlass().getName(), String.valueOf(definition.getVersion()));
         } catch (Throwable t) {
           LOG.error("Generator {} failed", definition.getName(), t);
           failedGenerators.put(definition.getKlass().getName(), String.valueOf(definition.getVersion()));
@@ -405,7 +449,7 @@ public class SupportBundleManager extends AbstractTask implements BundleContext 
 
       // generators.properties
       zipStream.putNextEntry(new ZipEntry("generators.properties"));
-      generators.store(zipStream, "");
+      runGenerators.store(zipStream, "");
       zipStream.closeEntry();
 
       // failed_generators.properties
@@ -413,10 +457,12 @@ public class SupportBundleManager extends AbstractTask implements BundleContext 
       failedGenerators.store(zipStream, "");
       zipStream.closeEntry();
 
-      // metadata.properties
-      zipStream.putNextEntry(new ZipEntry("metadata.properties"));
-      getMetadata().store(zipStream, "");
-      zipStream.closeEntry();
+      if(!bundleType.isAnonymizeMetadata()) {
+        // metadata.properties
+        zipStream.putNextEntry(new ZipEntry("metadata.properties"));
+        getMetadata(bundleType).store(zipStream, "");
+        zipStream.closeEntry();
+      }
 
     } catch (Exception e) {
       LOG.error("Failed to generate resource bundle", e);
@@ -430,13 +476,14 @@ public class SupportBundleManager extends AbstractTask implements BundleContext 
     }
   }
 
-  private Properties getMetadata() {
+  private Properties getMetadata(BundleType bundleType) {
     Properties metadata = new Properties();
     metadata.put("version", "1");
     metadata.put("sdc.version", buildInfo.getVersion());
     metadata.put("sdc.id", runtimeInfo.getId());
     metadata.put("sdc.acl.enabled", String.valueOf(runtimeInfo.isAclEnabled()));
     metadata.put("customer.id", getCustomerId());
+    metadata.put("bundle.type", bundleType.getTag());
 
     return metadata;
   }
@@ -469,6 +516,11 @@ public class SupportBundleManager extends AbstractTask implements BundleContext 
   @Override
   public SnapshotStore getSnapshotStore() {
     return snapshotStore;
+  }
+
+  @Override
+  public BlobStoreTask getBlobStore() {
+    return blobStore;
   }
 
   private static class BundleWriterImpl implements BundleWriter {

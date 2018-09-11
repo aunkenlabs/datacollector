@@ -61,14 +61,20 @@ angular.module('dataCollectorApp.common')
               elFunctionDefinitions = [],
               elConstantDefinitions = [];
 
-            //Definitions
+            // Definitions
             self.pipelineConfigDefinition = definitions.pipeline[0];
             self.pipelineRulesConfigDefinition = definitions.pipelineRules[0];
             self.stageDefinitions = definitions.stages;
             self.serviceDefinitions = definitions.services;
             self.elCatalog = definitions.elCatalog;
 
-            //General Rules
+
+            self.serviceDefinitionsMap = {};
+            angular.forEach(self.serviceDefinitions, function (serviceDefinition) {
+              self.serviceDefinitionsMap[serviceDefinition.provides] = serviceDefinition;
+            });
+
+            // General Rules
             angular.forEach(rulesElMetadata.general.elFunctionDefinitions, function(idx) {
               elFunctionDefinitions.push(self.elCatalog.elFunctionDefinitions[parseInt(idx)]);
             });
@@ -83,7 +89,7 @@ angular.module('dataCollectorApp.common')
               regex: 'wordColonSlash'
             };
 
-            //Drift Rules
+            // Drift Rules
             elFunctionDefinitions = [];
             elConstantDefinitions = [];
 
@@ -119,7 +125,7 @@ angular.module('dataCollectorApp.common')
               regex: 'wordColonSlash'
             };
 
-            //Metric Rules
+            // Metric Rules
             self.metricRulesELMetadata = angular.copy(self.generalRulesElMetadata);
             self.metricRulesELMetadata.elFunctionDefinitions.push({
               name: "value",
@@ -200,14 +206,9 @@ angular.module('dataCollectorApp.common')
      *
      */
     this.getServiceDefinition = function(serviceName) {
-      var serviceDef = null;
-      angular.forEach(self.getServiceDefinitions(), function(serviceDefinition) {
-        if (serviceDefinition.provides === serviceName) {
-          serviceDef = serviceDefinition;
-        }
-      });
-      return serviceDef;
+      return self.serviceDefinitionsMap[serviceName];
     };
+
     /**
      * Returns General Rules EL Metadata
      *
@@ -790,6 +791,8 @@ angular.module('dataCollectorApp.common')
 
       if (options.errorStage) {
         return 'Error Records - ' + label;
+      } else if (options.testOriginStage) {
+        return 'Test Origin - ' + label;
       } else if (options.statsAggregatorStage) {
         return 'Stats Aggregator - ' + label;
       } else if (options.startEventStage) {
@@ -818,6 +821,8 @@ angular.module('dataCollectorApp.common')
 
       if (options.errorStage) {
         return stageName + '_ErrorStage';
+      } else if (options.testOriginStage) {
+        return stageName + '_TestOriginStage';
       } else if (options.statsAggregatorStage) {
         return stageName + '_StatsAggregatorStage';
       } else if (options.startEventStage) {
@@ -1987,22 +1992,29 @@ angular.module('dataCollectorApp.common')
       return stageInstances;
     };
 
-    this.getFilteredStageDefinitions = function(stageDefinitions, type, executionMode) {
+    this.getFilteredStageDefinitions = function(stageDefinitions, type, executionMode, isMicroservicePipeline) {
       var alreadyAdded = {};
       return _.chain(stageDefinitions)
         .filter(function (s) {
           if (alreadyAdded[s.name + s.version]) {
             return;
           }
-          alreadyAdded[s.name + s.version] = true;
-          return s.type === type && !s.errorStage && !s.statsAggregatorStage &&
+          if (s.type === type && !s.errorStage && !s.statsAggregatorStage &&
+            s.hideStage.length === 0 &&
             s.name.indexOf('_fragment_') === -1 &&
             s.library !== 'streamsets-datacollector-stats-lib' &&
-            (!executionMode || s.executionModes.indexOf(executionMode) !== -1);
-
+            (!executionMode || s.executionModes.indexOf(executionMode) !== -1) &&
+            (!isMicroservicePipeline || s.type !== pipelineConstant.SOURCE_STAGE_TYPE ||
+              s.name === pipelineConstant.REST_SERVICE_STAGE_NAME)
+          ) {
+            alreadyAdded[s.name + s.version] = true;
+            return true;
+          } else {
+            return false;
+          }
         })
         .sortBy('libraryLabel')
         .value();
-    }
+    };
 
   });

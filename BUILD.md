@@ -29,8 +29,7 @@ To build the Data Collector you will need the following software :
 ## Prerequisite Tasks for Building Data Collector
 
 If you're building master branch, then you need to install API and Plugin API modules to your maven cache first before compiling Data Collector. Released versions
-are published to public maven repositories and for them this step can be skipped. While Data Collector runs on Java 7, Java 8 is required for
-running integration tests.
+are published to public maven repositories and for them this step can be skipped.
 
 - You can do that by getting the latest code from Github
 
@@ -68,11 +67,11 @@ From within the Data Collector directory, execute:
 
 To start the Data Collector, execute:
 
-`dist/target/streamsets-datacollector-3.4.0-SNAPSHOT/streamsets-datacollector-3.4.0-SNAPSHOT/bin/streamsets dc`
+`dist/target/streamsets-datacollector-3.4.2/streamsets-datacollector-3.4.2/bin/streamsets dc`
 
 For Data Collector CLI, execute:
 
-`dist/target/streamsets-datacollector-3.4.0-SNAPSHOT/streamsets-datacollector-3.4.0-SNAPSHOT/bin/streamsets cli`
+`dist/target/streamsets-datacollector-3.4.2/streamsets-datacollector-3.4.2/bin/streamsets cli`
 
 To skip the RAT report during the build use the `-DskipRat` option.
 
@@ -98,12 +97,12 @@ From within the Data Collector directory, execute:
 
 The release tarball will be created at:
 
-`release/target/streamsets-datacollector-all-3.4.0-SNAPSHOT.tgz`
+`release/target/streamsets-datacollector-all-3.4.2.tgz`
 
 Extract the tarball to your preferred location :
 
-`tar xf streamsets-datacollector-all-3.4.0-SNAPSHOT.tgz`
+`tar xf streamsets-datacollector-all-3.4.2.tgz`
 
 To start the DataCollector, execute:
 
-`streamsets-datacollector-all-3.4.0-SNAPSHOT/bin/streamsets dc`
+`streamsets-datacollector-all-3.4.2/bin/streamsets dc`

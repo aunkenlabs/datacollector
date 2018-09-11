@@ -27,12 +27,12 @@ import com.streamsets.pipeline.config.OnStagePreConditionFailure;
 import com.streamsets.pipeline.config.OnStagePreConditionFailureChooserValues;
 
 @StageDef(
-    version=2,
+    version=3,
     label="Field Pivoter",
     description = "Produce new records for each element of a list or map field",
     icon="pivoter.png",
     upgrader = ListPivotProcessorUpgrader.class,
-    onlineHelpRefUrl ="index.html#datacollector/UserGuide/Processors/ListPivoter.html#task_dn1_k13_qw"
+    onlineHelpRefUrl ="index.html?contextID=task_dn1_k13_qw"
 )
 @ConfigGroups(Groups.class)
 @GenerateResourceBundle
@@ -56,7 +56,7 @@ public class ListPivotDProcessor extends DProcessor {
       type = ConfigDef.Type.BOOLEAN,
       defaultValue = "true",
       label = "Copy All Fields",
-      description = "Copy all fields (including the original list) to each resulting record. " +
+      description = "Copy all non-pivot fields to each resulting record. " +
           "If this is not set, then the pivoted value is set as the root field of the record.",
       displayPosition = 20
   )
@@ -76,6 +76,19 @@ public class ListPivotDProcessor extends DProcessor {
       displayPosition = 30
   )
   public String newPath;
+
+  @ConfigDef(
+      required = true,
+      group = "PIVOT",
+      type = ConfigDef.Type.BOOLEAN,
+      dependsOn = "newPath",
+      triggeredByValue = "true",
+      defaultValue = "true",
+      label = "Remove Pivot Field",
+      description = "If this is set, old pivot field values will not be copied to new record.",
+      displayPosition = 31
+  )
+  public boolean replaceListField;
 
   @ConfigDef(
       required = true,
@@ -119,6 +132,7 @@ public class ListPivotDProcessor extends DProcessor {
         listPath,
         newPath,
         copyFields,
+        replaceListField,
         saveOriginalFieldName,
         originalFieldNamePath,
         onStagePreConditionFailure

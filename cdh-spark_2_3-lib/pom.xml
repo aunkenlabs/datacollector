@@ -23,12 +23,12 @@
   <parent>
     <groupId>com.streamsets</groupId>
     <artifactId>streamsets-datacollector-stage-lib-parent</artifactId>
-    <version>3.4.0-SNAPSHOT</version>
+    <version>3.4.2</version>
     <relativePath>../stage-lib-parent</relativePath>
   </parent>
   <groupId>com.streamsets</groupId>
   <artifactId>streamsets-datacollector-cdh-spark_2_3-lib</artifactId>
-  <version>3.4.0-SNAPSHOT</version>
+  <version>3.4.2</version>
   <description>StreamSets Data Collector CDH Cluster Cloudera Spark 2.3 Lib</description>
   <name>StreamSets Data Collector CDH Cluster Spark 2.3 Lib</name>
   <packaging>jar</packaging>
@@ -37,18 +37,8 @@
     <scala.version>2.11.8</scala.version>
     <spark.version>2.3.0.cloudera2</spark.version>
     <kafka.version>0.10.0-kafka-2.1.0</kafka.version>
+    <zkclient.version>0.8</zkclient.version>
   </properties>
-
-  <repositories>
-    <repository>
-      <id>cdh.repo</id>
-      <url>https://repository.cloudera.com/content/groups/cloudera-repos</url>
-      <name>Cloudera Repositories</name>
-      <snapshots>
-        <enabled>false</enabled>
-      </snapshots>
-    </repository>
-  </repositories>
 
   <dependencies>
     <dependency>
@@ -190,6 +180,12 @@
     </dependency>
 
     <dependency>
+      <groupId>com.101tec</groupId>
+      <artifactId>zkclient</artifactId>
+      <version>${zkclient.version}</version>
+    </dependency>
+
+    <dependency>
       <groupId>org.apache.kafka</groupId>
       <artifactId>kafka_2.11</artifactId>
       <version>${kafka.version}</version>
@@ -199,11 +195,35 @@
           <groupId>org.apache.zookeeper</groupId>
           <artifactId>zookeeper</artifactId>
         </exclusion>
+      </exclusions>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.kafka</groupId>
+      <artifactId>kafka_2.11</artifactId>
+      <version>${kafka.version}</version>
+      <classifier>test</classifier>
+      <scope>test</scope>
+      <exclusions>
         <exclusion>
-          <groupId>org.apache.kafka</groupId>
-          <artifactId>kafka-clients</artifactId>
+          <groupId>org.apache.zookeeper</groupId>
+          <artifactId>zookeeper</artifactId>
         </exclusion>
       </exclusions>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.kafka</groupId>
+      <artifactId>kafka-clients</artifactId>
+      <version>${kafka.version}</version>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.kafka</groupId>
+      <artifactId>kafka-clients</artifactId>
+      <version>${kafka.version}</version>
+      <scope>test</scope>
+      <classifier>test</classifier>
     </dependency>
 
     <!--  Part of spark assembly, so scope it out as test -->

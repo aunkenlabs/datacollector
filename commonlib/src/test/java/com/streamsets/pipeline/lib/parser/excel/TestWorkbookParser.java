@@ -36,12 +36,16 @@ import org.junit.rules.ExpectedException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 public class TestWorkbookParser {
   WorkbookParserSettings settingsNoHeader;
@@ -107,7 +111,7 @@ public class TestWorkbookParser {
   public void testParseCorrectlyHandlesFilesWithHeaders() throws IOException, InvalidFormatException, DataParserException {
     Workbook workbook = createWorkbook("/excel/TestExcel.xlsx");
 
-    WorkbookParser parser = new WorkbookParser(settingsWithHeader, getContext(), workbook, "Sheet1::1");
+    WorkbookParser parser = new WorkbookParser(settingsWithHeader, getContext(), workbook, "Sheet1::0");
 
     Record firstContentRow = parser.parse();
 
@@ -118,13 +122,42 @@ public class TestWorkbookParser {
     Field expected = Field.createListMap(contentMap);
 
     assertEquals(expected, firstContentRow.get());
+    assertEquals("Sheet1", firstContentRow.getHeader().getAttribute("worksheet"));
+
+  }
+
+  @Test
+  public void testParseCorrectlyEmptyLeadingRowsAndColumns() throws IOException, InvalidFormatException, DataParserException {
+    Workbook workbook = createWorkbook("/excel/TestExcelEmptyRowsCols.xlsx");
+
+    WorkbookParser parser = new WorkbookParser(settingsWithHeader, getContext(), workbook, "Sheet1::0");
+
+    // column header prefix, row value multiplier
+    List<Pair<String, Integer>> sheetParameters = Arrays.asList(
+            Pair.of("column", 1),
+            Pair.of("header", 10)
+    );
+
+    for (int sheet = 1; sheet <= sheetParameters.size(); sheet++) {
+      for (int row = 1; row <= 2; row++) {
+        Record parsedRow = parser.parse();
+        LinkedHashMap<String, Field> contentMap = new LinkedHashMap<>();
+        String columnPrefix = sheetParameters.get(sheet - 1).getLeft();
+        Integer valueMultiplier = sheetParameters.get(sheet - 1).getRight();
+        for (int column = 1; column <= 3+sheet; column++) {
+            contentMap.put(columnPrefix + column, Field.create(BigDecimal.valueOf(column * valueMultiplier)));
+        }
+        Field expectedRow = Field.createListMap(contentMap);
+        assertEquals(String.format("Parsed value for sheet %1d, row %2d did not match expected value", sheet, row), expectedRow, parsedRow.get());
+      }
+    }
   }
 
   @Test
   public void testParseCorrectlyHandlesFileThatIgnoresHeaders() throws IOException, DataParserException, InvalidFormatException {
     Workbook workbook = createWorkbook("/excel/TestExcel.xlsx");
 
-    WorkbookParser parser = new WorkbookParser(settingsIgnoreHeader, getContext(), workbook, "Sheet1::1");
+    WorkbookParser parser = new WorkbookParser(settingsIgnoreHeader, getContext(), workbook, "Sheet1::0");
 
     Record firstContentRow = parser.parse();
 
@@ -135,6 +168,90 @@ public class TestWorkbookParser {
     Field expected = Field.createListMap(contentMap);
 
     assertEquals(expected, firstContentRow.get());
+  }
+
+  @Test
+  public void testOlderVersionOfExcelWithMacros() throws IOException, InvalidFormatException, DataParserException, ParseException {
+    Workbook workbook = createWorkbook("/excel/TestExcelOlderVersionWithMacros.xls");
+
+    WorkbookParser parser = new WorkbookParser(settingsWithHeader, getContext(), workbook, "Orders::0");
+    int numRows=0;
+    while (parser.getOffset() != "-1") {
+      parser.parse();
+      ++numRows;
+    }
+    --numRows; // remove last increment because that round would have generated EOF
+    assertEquals("Total record count mismatch", 10294, numRows);
+
+  }
+
+  @Test
+  public void testARealSpreadsheetWithMultipleSheets() throws IOException, InvalidFormatException, DataParserException, ParseException {
+    Workbook workbook = createWorkbook("/excel/TestRealSheet.xlsx");
+
+    WorkbookParser parser = new WorkbookParser(settingsWithHeader, getContext(), workbook, "Orders::0");
+
+    // column header prefix, row value multiplier
+    List<Pair<String, Integer>> sheetParameters = Arrays.asList(
+            Pair.of("column", 1),
+            Pair.of("header", 10)
+    );
+
+    // TEST 1 - verify first non-header record of first sheet
+    LinkedHashMap<String, Field> Sheet1Headers = new LinkedHashMap<>();
+    String[] Sheet1HdrList = { "Row ID","Order ID","Order Date","Ship Date","Ship Mode","Customer ID","Customer Name","Segment","Country","City","State","Postal Code","Region","Product ID","Category","Sub-Category","Product Name","Sales","Quantity","Discount","Profit" };
+    for (int i=0; i < Sheet1HdrList.length; i++) {
+      Sheet1Headers.put(Sheet1HdrList[i], Field.create(Sheet1HdrList[i]));
+    }
+    LinkedHashMap<String, Field> row1Expected = new LinkedHashMap<>();
+    DateFormat df = new SimpleDateFormat("MM-dd-yyyy");
+
+    row1Expected.put("Row ID", Field.create(new BigDecimal(1.0)));
+    row1Expected.put("Order ID", Field.create("CA-2016-152156"));
+    row1Expected.put("Order Date", Field.createDate(df.parse("11-08-2016")));
+    row1Expected.put("Ship Date", Field.createDate(df.parse("11-11-2016")));
+    row1Expected.put("Ship Mode", Field.create("Second Class"));
+    row1Expected.put("Customer ID", Field.create("CG-12520"));
+    row1Expected.put("Customer Name", Field.create("Claire Gute"));
+    row1Expected.put("Segment", Field.create("Consumer"));
+    row1Expected.put("Country", Field.create("United States"));
+    row1Expected.put("City", Field.create("Henderson"));
+    row1Expected.put("State", Field.create("Kentucky"));
+    row1Expected.put("Postal Code", Field.create(new BigDecimal("42420")));
+    row1Expected.put("Region", Field.create("South"));
+    row1Expected.put("Product ID", Field.create("FUR-BO-10001798"));
+    row1Expected.put("Category", Field.create("Furniture"));
+    row1Expected.put("Sub-Category", Field.create("Bookcases"));
+    row1Expected.put("Product Name", Field.create("Bush Somerset Collection Bookcase"));
+    row1Expected.put("Sales", Field.create(new BigDecimal("261.96")));
+    row1Expected.put("Quantity", Field.create(new BigDecimal("2")));
+    row1Expected.put("Discount", Field.create(new BigDecimal("0")));
+    row1Expected.put("Profit", Field.create(new BigDecimal("41.9136")));
+
+    Record parsedRow = parser.parse();
+    Field expectedRow = Field.createListMap(row1Expected);
+    assertEquals("Parsed value for sheet Orders, row 1 did not match expected value", expectedRow, parsedRow.get());
+
+    // TEST 2 - Verify first non-header record on second sheet
+    LinkedHashMap<String, Field> sheet2Expected = new LinkedHashMap<>();
+    sheet2Expected.put("Returned",Field.create("Yes"));
+    sheet2Expected.put("Order ID", Field.create("CA-2017-153822"));
+    expectedRow = Field.createListMap(sheet2Expected);
+    parser = new WorkbookParser(settingsWithHeader, getContext(), workbook, "Returns::0");
+    parsedRow = parser.parse();
+    assertEquals("Parsed value for sheet Returns, row 1 did not match expected value", expectedRow, parsedRow.get());
+
+    // TEST 3 - Verify total rows processed is what is in the sheet (minus header rows)
+    parser = new WorkbookParser(settingsWithHeader, getContext(), workbook, "Orders::0");
+    int numRows=0;
+    while (parser.getOffset() != "-1") {
+      parser.parse();
+      ++numRows;
+    }
+    --numRows; // remove last increment because that round would have generated EOF
+    assertEquals("Total record count mismatch", 10294, numRows);
+
+
   }
 
   @Test
@@ -179,7 +296,7 @@ public class TestWorkbookParser {
   public void testParseHandlesMultipleSheets() throws IOException, InvalidFormatException, DataParserException {
     Workbook workbook = createWorkbook("/excel/TestMultipleSheets.xlsx");
 
-    WorkbookParser parser = new WorkbookParser(settingsWithHeader, getContext(), workbook, "Sheet1::1");
+    WorkbookParser parser = new WorkbookParser(settingsWithHeader, getContext(), workbook, "Sheet1::0");
 
     // column header prefix, row value multiplier
     List<Pair<String, Integer>> sheetParameters = Arrays.asList(
@@ -205,7 +322,7 @@ public class TestWorkbookParser {
   public void testParseHandlesBlanksCells() throws IOException, InvalidFormatException, DataParserException {
     Workbook workbook = createWorkbook("/excel/TestBlankCells.xlsx");
 
-    WorkbookParser parser = new WorkbookParser(settingsWithHeader, getContext(), workbook, "Sheet1::1");
+    WorkbookParser parser = new WorkbookParser(settingsWithHeader, getContext(), workbook, "Sheet1::0");
 
     Record recordFirstRow = parser.parse();
 
@@ -223,7 +340,7 @@ public class TestWorkbookParser {
   @Test
   public void testParseThrowsRecoverableDataExceptionForUnsupportedCellType() throws IOException, InvalidFormatException, DataParserException {
     Workbook workbook = createWorkbook("/excel/TestErrorCells.xlsx");
-    WorkbookParser parser = new WorkbookParser(settingsWithHeader, getContext(), workbook, "Sheet1::1");
+    WorkbookParser parser = new WorkbookParser(settingsWithHeader, getContext(), workbook, "Sheet1::0");
 
     exception.expect(RecoverableDataParserException.class);
     exception.expectMessage("EXCEL_PARSER_05 - Unsupported cell type ERROR");

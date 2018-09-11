@@ -23,17 +23,16 @@
   <parent>
     <groupId>com.streamsets</groupId>
     <artifactId>streamsets-datacollector-stage-lib-parent</artifactId>
-    <version>3.4.0-SNAPSHOT</version>
+    <version>3.4.2</version>
     <relativePath>../stage-lib-parent</relativePath>
   </parent>
   <artifactId>streamsets-datacollector-aws-lib</artifactId>
-  <version>3.4.0-SNAPSHOT</version>
+  <version>3.4.2</version>
   <description>StreamSets Data Collector Amazon AWS Library</description>
   <name>StreamSets Data Collector Amazon AWS Library</name>
   <packaging>jar</packaging>
 
   <properties>
-    <kinesis.client.version>1.8.8</kinesis.client.version>
     <kpl.version>0.12.8</kpl.version>
     <commons-lang3.version>3.4</commons-lang3.version>
     <commons-math3.version>3.5</commons-math3.version>
@@ -88,23 +87,11 @@
     <!-- Compile Dependencies -->
     <dependency>
       <groupId>com.streamsets</groupId>
-      <artifactId>streamsets-datacollector-common</artifactId>
-      <scope>compile</scope>
+      <artifactId>streamsets-datacollector-stagesupport</artifactId>
     </dependency>
     <dependency>
       <groupId>com.streamsets</groupId>
-      <artifactId>streamsets-datacollector-commonlib</artifactId>
-      <scope>compile</scope>
-    </dependency>
-    <dependency>
-      <groupId>com.amazonaws</groupId>
-      <artifactId>amazon-kinesis-client</artifactId>
-      <version>${kinesis.client.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>com.amazonaws</groupId>
-      <artifactId>amazon-kinesis-producer</artifactId>
-      <version>${kpl.version}</version>
+      <artifactId>streamsets-datacollector-guavasupport</artifactId>
     </dependency>
     <dependency>
       <groupId>com.amazonaws</groupId>

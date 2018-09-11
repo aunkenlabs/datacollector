@@ -24,6 +24,8 @@ import com.streamsets.datacollector.config.PipelineFragmentDefinition;
 import com.streamsets.datacollector.config.PipelineRulesDefinition;
 import com.streamsets.datacollector.config.ServiceDefinition;
 import com.streamsets.datacollector.config.StageDefinition;
+import com.streamsets.datacollector.config.StageLibraryDefinition;
+import com.streamsets.datacollector.config.StageLibraryDelegateDefinitition;
 import com.streamsets.datacollector.task.Task;
 import com.streamsets.pipeline.api.impl.annotationsprocessor.PipelineAnnotationsProcessor;
 
@@ -32,44 +34,51 @@ import java.util.Map;
 
 public interface StageLibraryTask extends Task, ClassLoaderReleaser {
 
-  public static final String STAGES_DEFINITION_RESOURCE = PipelineAnnotationsProcessor.STAGES_FILE;
+  String STAGES_DEFINITION_RESOURCE = PipelineAnnotationsProcessor.STAGES_FILE;
 
-  public static final String EL_DEFINITION_RESOURCE = PipelineAnnotationsProcessor.ELDEFS_FILE;
+  String EL_DEFINITION_RESOURCE = PipelineAnnotationsProcessor.ELDEFS_FILE;
 
-  public static final String LINEAGE_PUBLISHERS_DEFINITION_RESOURCE = PipelineAnnotationsProcessor.LINEAGE_PUBLISHERS_FILE;
+  String LINEAGE_PUBLISHERS_DEFINITION_RESOURCE = PipelineAnnotationsProcessor.LINEAGE_PUBLISHERS_FILE;
 
-  public static final String CREDENTIAL_STORE_DEFINITION_RESOURCE = PipelineAnnotationsProcessor.CREDENTIAL_STORE_FILE;
+  String CREDENTIAL_STORE_DEFINITION_RESOURCE = PipelineAnnotationsProcessor.CREDENTIAL_STORE_FILE;
 
-  public static final String SERVICE_DEFINITION_RESOURCE = PipelineAnnotationsProcessor.SERVICES_FILE;
+  String SERVICE_DEFINITION_RESOURCE = PipelineAnnotationsProcessor.SERVICES_FILE;
 
-  public static final String INTERCEPTOR_DEFINITION_RESOURCE = PipelineAnnotationsProcessor.INTERCEPTORS_FILE;
+  String INTERCEPTOR_DEFINITION_RESOURCE = PipelineAnnotationsProcessor.INTERCEPTORS_FILE;
 
-  public PipelineDefinition getPipeline();
+  String DELEGATE_DEFINITION_RESOURCE = PipelineAnnotationsProcessor.DELEGATE_LIST_FILE;
 
-  public PipelineFragmentDefinition getPipelineFragment();
+  PipelineDefinition getPipeline();
 
-  public PipelineRulesDefinition getPipelineRules();
+  PipelineFragmentDefinition getPipelineFragment();
 
-  public List<StageDefinition> getStages();
+  PipelineRulesDefinition getPipelineRules();
 
-  public List<LineagePublisherDefinition> getLineagePublisherDefinitions();
+  List<StageDefinition> getStages();
 
-  public LineagePublisherDefinition getLineagePublisherDefinition(String library, String name);
+  List<LineagePublisherDefinition> getLineagePublisherDefinitions();
 
-  public List<CredentialStoreDefinition> getCredentialStoreDefinitions();
+  LineagePublisherDefinition getLineagePublisherDefinition(String library, String name);
 
-  public List<ServiceDefinition> getServiceDefinitions();
+  List<CredentialStoreDefinition> getCredentialStoreDefinitions();
 
-  public ServiceDefinition getServiceDefinition(Class serviceInterface, boolean forExecution);
+  List<ServiceDefinition> getServiceDefinitions();
 
-  public List<InterceptorDefinition> getInterceptorDefinitions();
+  ServiceDefinition getServiceDefinition(Class serviceInterface, boolean forExecution);
 
-  public StageDefinition getStage(String library, String name, boolean forExecution);
+  List<InterceptorDefinition> getInterceptorDefinitions();
 
-  public Map<String, String> getLibraryNameAliases();
+  StageDefinition getStage(String library, String name, boolean forExecution);
 
-  public Map<String, String> getStageNameAliases();
+  Map<String, String> getLibraryNameAliases();
 
-  public List<ClasspathValidatorResult> validateStageLibClasspath();
+  Map<String, String> getStageNameAliases();
 
+  List<ClasspathValidatorResult> validateStageLibClasspath();
+
+  List<StageLibraryDelegateDefinitition> getStageLibraryDelegateDefinitions();
+
+  StageLibraryDelegateDefinitition getStageLibraryDelegateDefinition(String  stageLibrary, Class exportedInterface);
+
+  List<StageLibraryDefinition> getLoadedStageLibraries();
 }

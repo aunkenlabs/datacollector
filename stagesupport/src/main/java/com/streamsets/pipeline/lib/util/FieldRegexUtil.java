@@ -56,10 +56,11 @@ public class FieldRegexUtil {
     return false;
   }
 
-  public static List<String> getMatchingFieldPaths(String fieldPath, Set<String> fieldPaths) {
+  public static List<String> getMatchingFieldPaths(String fieldPath, Iterable<String> fieldPaths) {
     if(!hasWildCards(fieldPath)) {
       return Arrays.asList(fieldPath);
     }
+
     //Any reference to array index brackets [ ] must be escaped in the regex
     //Reference to * in map must be replaced by regex that matches a field name
     //Reference to * in array index must be replaced by \d+

@@ -36,11 +36,13 @@ import com.streamsets.pipeline.stage.processor.scripting.ProcessingModeChooserVa
         ExecutionMode.CLUSTER_BATCH,
         ExecutionMode.CLUSTER_YARN_STREAMING,
         ExecutionMode.CLUSTER_MESOS_STREAMING,
-        ExecutionMode.EDGE
+        ExecutionMode.EDGE,
+        ExecutionMode.EMR_BATCH
+
     },
     upgrader = JavaScriptProcessorUpgrader.class,
     producesEvents = true,
-    onlineHelpRefUrl ="index.html#datacollector/UserGuide/Processors/JavaScript.html#task_mzc_1by_nr"
+    onlineHelpRefUrl ="index.html?contextID=task_mzc_1by_nr"
 )
 @ConfigGroups(Groups.class)
 @GenerateResourceBundle

@@ -42,8 +42,8 @@ public class HttpReceiverServlet extends HttpServlet {
   private final HttpReceiver receiver;
   private final BlockingQueue<Exception> errorQueue;
   private final Meter invalidRequestMeter;
-  private final Meter errorRequestMeter;
-  private final Meter requestMeter;
+  protected final Meter errorRequestMeter;
+  protected final Meter requestMeter;
   private final Timer requestTimer;
   private volatile boolean shuttingDown;
 
@@ -56,12 +56,12 @@ public class HttpReceiverServlet extends HttpServlet {
     requestTimer = context.createTimer("requests");
   }
 
-  HttpReceiver getReceiver() {
+  protected HttpReceiver getReceiver() {
     return receiver;
   }
 
   @VisibleForTesting
-  boolean validateAppId(HttpServletRequest req, HttpServletResponse res)
+  protected boolean validateAppId(HttpServletRequest req, HttpServletResponse res)
       throws ServletException, IOException {
     boolean valid = false;
     String ourAppId = null;
@@ -156,13 +156,7 @@ public class HttpReceiverServlet extends HttpServlet {
             }
           }
           LOG.debug("Processing request from '{}'", requestor);
-          if (getReceiver().process(req, is)) {
-            resp.setStatus(HttpServletResponse.SC_OK);
-            requestMeter.mark();
-          } else {
-            resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Record(s) didn't reach all destinations");
-            errorRequestMeter.mark();
-          }
+          processRequest(req, is, resp);
         } catch (Exception ex) {
           errorQueue.offer(ex);
           errorRequestMeter.mark();
@@ -178,12 +172,22 @@ public class HttpReceiverServlet extends HttpServlet {
     }
   }
 
+  protected void processRequest(HttpServletRequest req, InputStream is, HttpServletResponse resp) throws IOException {
+    if (getReceiver().process(req, is, resp)) {
+      resp.setStatus(HttpServletResponse.SC_OK);
+      requestMeter.mark();
+    } else {
+      resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Record(s) didn't reach all destinations");
+      errorRequestMeter.mark();
+    }
+  }
+
   @VisibleForTesting
   boolean isShuttingDown() {
     return shuttingDown;
   }
 
-  void setShuttingDown() {
+  public void setShuttingDown() {
     shuttingDown = true;
   }
 

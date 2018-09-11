@@ -20,6 +20,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.RateLimiter;
 import com.streamsets.datacollector.record.RecordImpl;
 import com.streamsets.pipeline.api.Record;
+import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.StageType;
 import com.streamsets.pipeline.api.impl.Utils;
 import com.streamsets.pipeline.api.interceptor.Interceptor;
@@ -47,10 +48,14 @@ public class FullPipeBatch implements PipeBatch {
   private final ErrorSink errorSink;
   private final EventSink eventSink;
   private final ProcessedSink processedSink;
+  private final SourceResponseSink sourceResponseSink;
   private String newOffset;
   private int inputRecords;
   private int outputRecords;
   private RateLimiter rateLimiter;
+
+  // True if the batch was created by a framework rather then origin
+  private boolean isIdleBatch;
 
   public FullPipeBatch(String sourceEntity, String lastOffset, int batchSize, boolean snapshotStagesOutput) {
     this.sourceEntity = sourceEntity;
@@ -62,6 +67,7 @@ public class FullPipeBatch implements PipeBatch {
     errorSink = new ErrorSink();
     eventSink = new EventSink();
     processedSink = new ProcessedSink();
+    sourceResponseSink = new SourceResponseSink();
   }
 
   @VisibleForTesting
@@ -94,7 +100,7 @@ public class FullPipeBatch implements PipeBatch {
 
   @Override
   @SuppressWarnings("unchecked")
-  public BatchImpl getBatch(final Pipe pipe, List<? extends Interceptor> interceptors) {
+  public BatchImpl getBatch(final Pipe pipe, List<? extends Interceptor> interceptors) throws StageException {
     List<Record> records = new ArrayList<>();
     List<String> inputLanes = pipe.getInputLanes();
     for (String inputLane : inputLanes) {
@@ -138,7 +144,7 @@ public class FullPipeBatch implements PipeBatch {
   }
 
   @Override
-  public void completeStage(BatchMakerImpl batchMaker, List<? extends Interceptor> interceptors) {
+  public void completeStage(BatchMakerImpl batchMaker, List<? extends Interceptor> interceptors) throws StageException {
     StagePipe pipe = batchMaker.getStagePipe();
     if (pipe.getStage().getDefinition().getType() == StageType.SOURCE) {
       inputRecords += batchMaker.getSize() +
@@ -159,8 +165,10 @@ public class FullPipeBatch implements PipeBatch {
       String instanceName = pipe.getStage().getInfo().getInstanceName();
       // The snapshot have a (deep) copy of the records so we need to run the interceptors again. We might eventually
       // decide to run the interceptor directly inside the batch to avoid this, but that is a future exercise.
-      Map<String, List<Record>> records = batchMaker.getStageOutputSnapshot().entrySet().stream()
-        .collect(Collectors.toMap(Map.Entry::getKey, e -> intercept(e.getValue(), interceptors)));
+      Map<String, List<Record>> records = new HashMap<>();
+      for(Map.Entry<String, List<Record>> entry : batchMaker.getStageOutputSnapshot().entrySet()) {
+        records.put(entry.getKey(), intercept(entry.getValue(), interceptors));
+      }
       stageOutputSnapshot.add(new StageOutput(instanceName, records, errorSink, eventSink));
     }
     if (pipe.getStage().getDefinition().getType().isOneOf(StageType.TARGET, StageType.EXECUTOR)) {
@@ -287,6 +295,11 @@ public class FullPipeBatch implements PipeBatch {
   }
 
   @Override
+  public SourceResponseSink getSourceResponseSink() {
+    return sourceResponseSink;
+  }
+
+  @Override
   public void moveLane(String inputLane, String outputLane) {
     fullPayload.put(outputLane, Preconditions.checkNotNull(fullPayload.remove(inputLane), Utils.formatL(
         "Stream '{}' does not exist", inputLane)));
@@ -351,9 +364,9 @@ public class FullPipeBatch implements PipeBatch {
   /**
    * Intercept given records with all the interceptors.
    *
-   * TODO: Do we need to clone the records at the begging of each iteration?
+   * We're not cloning records during interception as we aim at changing their original form.
    */
-  private List<Record> intercept(List<Record> records, List<? extends Interceptor> interceptors) {
+  private List<Record> intercept(List<Record> records, List<? extends Interceptor> interceptors) throws StageException {
     for(Interceptor interceptor : interceptors)  {
       records = interceptor.intercept(records);
     }
@@ -361,4 +374,11 @@ public class FullPipeBatch implements PipeBatch {
     return records;
   }
 
+  public void setIdleBatch(boolean idleBatch) {
+    this.isIdleBatch = idleBatch;
+  }
+
+  public boolean isIdleBatch() {
+    return isIdleBatch;
+  }
 }

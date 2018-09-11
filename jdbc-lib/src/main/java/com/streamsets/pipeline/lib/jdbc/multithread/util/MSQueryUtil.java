@@ -49,37 +49,34 @@ public final class MSQueryUtil {
   private static final String BEGIN_QUERY = "BEGIN";
   private static final String END_QUERY = "END";
 
-  private static final String CHANGE_TRACKING_TABLE_QUERY = "SET NOCOUNT ON;\n" +
-      "SELECT min_valid_version \n" +
+  private static final String CHANGE_TRACKING_TABLE_QUERY = "SELECT min_valid_version \n" +
       "FROM sys.change_tracking_tables t\n" +
-      "WHERE t.object_id = OBJECT_ID('%s')";
+      "WHERE t.object_id = OBJECT_ID('%s.%s')";
 
   private static final String CHANGE_TRACKING_CURRENT_VERSION_QUERY = "SELECT CHANGE_TRACKING_CURRENT_VERSION()";
 
-  private static final String INIT_CHANGE_TRACKING_QUERY = "SET NOCOUNT ON;\n" +
-      "DECLARE @synchronization_version BIGINT = %1$s;\n" +
+  private static final String INIT_CHANGE_TRACKING_QUERY = "DECLARE @synchronization_version BIGINT = %1$s;\n" +
       "\n" +
-      "SELECT TOP %2$s * \n" +
-      "FROM %3$s AS P\n" +
-      "RIGHT OUTER JOIN CHANGETABLE(CHANGES %3$s, @synchronization_version) AS " + CT_TABLE_NAME + "\n" +
-      "%4$s\n" +
-      "%5$s";
+      "SELECT * \n" +
+      "FROM %2$s AS P\n" +
+      "RIGHT OUTER JOIN CHANGETABLE(CHANGES %2$s, @synchronization_version) AS " + CT_TABLE_NAME + "\n" +
+      "%3$s\n" +
+      "%4$s";
 
-  private static final String CHANGE_TRACKING_QUERY = "SET NOCOUNT ON;\n" +
-      "SELECT TOP %1$s * \n" +
-          "FROM %2$s AS " + TABLE_NAME + "\n" +
-          "RIGHT OUTER JOIN CHANGETABLE(CHANGES %2$s, %3$s) AS " + CT_TABLE_NAME + "\n" +
+  private static final String CHANGE_TRACKING_QUERY = "SELECT * \n" +
+          "FROM %1$s AS " + TABLE_NAME + "\n" +
+          "RIGHT OUTER JOIN CHANGETABLE(CHANGES %1$s, %2$s) AS " + CT_TABLE_NAME + "\n" +
+          "%3$s\n" +
           "%4$s\n" +
-          "%5$s\n" +
-          "%6$s";
+          "%5$s\n";
 
-  private static final String SELECT_CT_CLAUSE = "SELECT TOP %s * FROM CHANGETABLE(CHANGES %s, %s) AS CT %s %s";
+  private static final String SELECT_CT_CLAUSE = "SELECT * FROM CHANGETABLE(CHANGES %s, %s) AS CT %s %s";
   private static final String SELECT_CLAUSE = "SELECT * FROM %s ";
 
   private static final Joiner COMMA_SPACE_JOINER = Joiner.on(", ");
   private static final Joiner AND_JOINER = Joiner.on(" AND ");
 
-  private static final String COLUMN_GREATER_THAN_VALUE = "%s > %s ";
+  private static final String COLUMN_GREATER_THAN_VALUE = "%s > '%s' ";
   private static final String BINARY_COLUMN_GREATER_THAN_CLAUSE = "%s > CAST(0x%s AS BINARY(10)) ";
   private static final String COLUMN_EQUALS_VALUE = "%s = %s ";
   private static final String BINARY_COLUMN_EQUALS_CLAUSE = "%s = CAST(0x%s AS BINARY(10)) ";
@@ -95,8 +92,8 @@ public final class MSQueryUtil {
     return CHANGE_TRACKING_CURRENT_VERSION_QUERY;
   }
 
-  public static String getMinVersion() {
-    return CHANGE_TRACKING_TABLE_QUERY;
+  public static String getMinVersion(String schema, String table) {
+    return String.format(CHANGE_TRACKING_TABLE_QUERY, schema, table);
   }
 
   public static String buildQuery(
@@ -104,7 +101,8 @@ public final class MSQueryUtil {
       int maxBatchSize, String tableName,
       Collection<String> offsetColumns,
       Map<String, String> startOffset,
-      boolean includeJoin
+      boolean includeJoin,
+      long offset
   ) {
     boolean isInitial = true;
 
@@ -130,6 +128,8 @@ public final class MSQueryUtil {
     String equal = String.format(ON_CLAUSE, AND_JOINER.join(equalCondition));
     String orderby = String.format(ORDER_BY_CLAUSE, COMMA_SPACE_JOINER.join(orderCondition));
 
+    long lastSysChangeVersion = offsetMap.get(SYS_CHANGE_VERSION) == null ? 0 : Long.parseLong(offsetMap.get(SYS_CHANGE_VERSION));
+
     if (!isInitial) {
       greaterCondition.add(String.format(COLUMN_EQUALS_VALUE, CT_TABLE_NAME + "." + SYS_CHANGE_VERSION, offsetMap.get(SYS_CHANGE_VERSION)));
       String condition1 = AND_JOINER.join(greaterCondition);
@@ -137,10 +137,20 @@ public final class MSQueryUtil {
       greater = String.format(WHERE_CLAUSE, String.format(OR_CLAUSE, condition1, condition2));
 
       if (includeJoin) {
-        return String.format(SELECT_CT_CLAUSE,
-            maxBatchSize,
+        return String.format(
+            CHANGE_TRACKING_QUERY,
             tableName,
-            startOffset.get(SYS_CHANGE_VERSION),
+            offset,
+            equal,
+            greater,
+            orderby
+        );
+
+      } else {
+        return String.format(
+            SELECT_CT_CLAUSE,
+            tableName,
+            offset,
             greater,
             orderby
         );
@@ -150,8 +160,7 @@ public final class MSQueryUtil {
     if (includeJoin) {
       return String.format(
           INIT_CHANGE_TRACKING_QUERY,
-          startOffset.get(SYS_CHANGE_VERSION),
-          maxBatchSize,
+          offset,
           tableName,
           equal,
           orderby
@@ -159,9 +168,8 @@ public final class MSQueryUtil {
     } else {
       return String.format(
           SELECT_CT_CLAUSE,
-          maxBatchSize,
           tableName,
-          startOffset.get(SYS_CHANGE_VERSION),
+          offset,
           greater,
           orderby
       );

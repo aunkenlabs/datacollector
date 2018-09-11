@@ -61,8 +61,17 @@ public class AmazonS3Executor extends BaseExecutor {
     // Initialize ELs
     validateEL("bucketTemplate", config.s3Config.bucketTemplate, issues);
     validateEL("objectPath", config.taskConfig.objectPath, issues);
-    validateEL("content", config.taskConfig.content, issues);
-    validateEL("tags", null, issues);
+    switch (config.taskConfig.taskType) {
+      case CREATE_NEW_OBJECT:
+        validateEL("content", config.taskConfig.content, issues);
+        break;
+      case CHANGE_EXISTING_OBJECT:
+        validateEL("tags", null, issues);
+        break;
+      case COPY_OBJECT:
+        validateEL("copyTargetLocation", config.taskConfig.copyTargetLocation, issues);
+        break;
+    }
 
     return issues;
   }
@@ -103,6 +112,9 @@ public class AmazonS3Executor extends BaseExecutor {
           case CREATE_NEW_OBJECT:
             createNewObject(record, variables, bucket, objectPath);
             break;
+          case COPY_OBJECT:
+            copyObject(record, variables, bucket, objectPath);
+            break;
           case CHANGE_EXISTING_OBJECT:
             changeExistingObject(record, variables, bucket, objectPath);
             break;
@@ -118,6 +130,25 @@ public class AmazonS3Executor extends BaseExecutor {
     }
   }
 
+  private void copyObject(
+    Record record,
+    ELVars variables,
+    String bucket,
+    String objectPath
+  ) throws StageException {
+    // Copy is currently limited to the same bucket
+    String newLocation = evaluate(record, "copyTargetLocation", variables, config.taskConfig.copyTargetLocation);
+    config.s3Config.getS3Client().copyObject(bucket, objectPath, bucket, newLocation);
+
+    if(config.taskConfig.dropAfterCopy) {
+      config.s3Config.getS3Client().deleteObject(bucket, objectPath);
+    }
+
+    Events.FILE_COPIED.create(getContext())
+      .with("object_key", newLocation)
+      .createAndSend();
+  }
+
   private void createNewObject(
     Record record,
     ELVars variables,
@@ -128,6 +159,10 @@ public class AmazonS3Executor extends BaseExecutor {
     String content = evaluate(record, "content", variables, config.taskConfig.content);
 
     config.s3Config.getS3Client().putObject(bucket, objectPath, content);
+
+    Events.FILE_CREATED.create(getContext())
+      .with("object_key", objectPath)
+      .createAndSend();
   }
 
   private void changeExistingObject(
@@ -154,6 +189,10 @@ public class AmazonS3Executor extends BaseExecutor {
         objectPath,
         new ObjectTagging(newTags)
       ));
+
+      Events.FILE_CHANGED.create(getContext())
+        .with("object_key", objectPath)
+        .createAndSend();
     }
   }
 

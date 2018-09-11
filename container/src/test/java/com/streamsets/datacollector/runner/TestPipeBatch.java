@@ -44,7 +44,7 @@ public class TestPipeBatch {
     List<Issue> errors = new ArrayList<>();
     StageLibraryTask library = MockStages.createStageLibrary();
     PipelineConfiguration pipelineConf = MockStages.createPipelineConfigurationSourceTarget();
-    PipelineBean pipelineBean = PipelineBeanCreator.get().create(false, library, pipelineConf, errors);
+    PipelineBean pipelineBean = PipelineBeanCreator.get().create(false, library, pipelineConf, null, errors);
     if (pipelineBean == null) {
       Assert.fail(errors.toString());
     }
@@ -393,7 +393,7 @@ public class TestPipeBatch {
   }
 
   @Test
-  public void testInterceptors() {
+  public void testInterceptors() throws Exception {
     PipeBatch pipeBatch = new FullPipeBatch(null,null, -1, true);
 
     PipelineBean pipelineBean = getPipelineBean();

@@ -16,6 +16,7 @@
 package com.streamsets.datacollector.cluster;
 
 public enum ClusterPipelineStatus {
+  STARTING("STARTING"),
   RUNNING("RUNNING"),
   SUCCEEDED("SUCCEEDED"),
   FAILED("FAILED"),

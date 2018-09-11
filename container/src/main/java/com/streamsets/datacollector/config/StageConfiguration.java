@@ -20,6 +20,7 @@ import com.streamsets.pipeline.api.impl.Utils;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -39,7 +40,7 @@ public class StageConfiguration implements Serializable, UserConfigurable {
 
   //wiring with other components
   private final List<String> inputLanes;
-  private final List<String> outputLanes;
+  private List<String> outputLanes;
   private List<String> eventLanes;
   private List<String> outputAndEventLanes; // Lazily calculated
 
@@ -64,7 +65,7 @@ public class StageConfiguration implements Serializable, UserConfigurable {
     this.library = library;
     this.stageName = stageName;
     this.stageVersion = stageVersion;
-    this.uiInfo = (uiInfo != null) ? new HashMap<>(uiInfo) : new HashMap<String, Object>();
+    this.uiInfo = (uiInfo != null) ? new HashMap<>(uiInfo) : new HashMap<>();
     this.services = services;
     this.inputLanes = inputLanes;
     this.outputLanes = outputLanes;
@@ -128,7 +129,15 @@ public class StageConfiguration implements Serializable, UserConfigurable {
     return outputLanes;
   }
 
+  public void setOutputLanes(List<String> outputLanes) {
+    this.outputLanes = outputLanes;
+    this.outputAndEventLanes = null;
+  }
+
   public List<String> getEventLanes() {
+    if (eventLanes == null) {
+      return Collections.emptyList();
+    }
     return eventLanes;
   }
 

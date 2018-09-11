@@ -13,13 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/**
- * Controller for Detail Pane.
- */
 
+// Controller for Detail Pane.
 angular
   .module('dataCollectorApp.home')
-  .controller('DetailController', function ($scope, $rootScope, _, pipelineConstant, api, contextHelpService, $modal) {
+  .controller('DetailController', function (
+    $scope, $rootScope, _, pipelineConstant, api, contextHelpService, $modal, authService, userRoles
+  ) {
     var infoTab = {
       name: 'info',
       template: 'app/home/detail/info/info.tpl.html',
@@ -34,11 +34,6 @@ angular
       name: 'configuration',
       template: 'app/home/detail/configuration/configuration.tpl.html',
       iconClass: 'fa fa-gear'
-    };
-    var rawPreviewTab = {
-      name: 'rawPreview',
-      template: 'app/home/detail/rawPreview/rawPreview.tpl.html',
-      iconClass: 'fa fa-eye'
     };
     var summaryTab = {
       name: 'summary',
@@ -78,6 +73,12 @@ angular
       iconClass: 'fa fa-list',
       helpId: 'metric-rules-tab'
     };
+    var externalLibrariesTab = {
+      name: 'externalLibraries',
+      template: 'app/home/detail/external_libraries/external_libraries.tpl.html',
+      iconClass: 'fa fa-upload',
+      helpId: 'metric-rules-tab'
+    };
 
     /**
      * Returns list tabs based on type.
@@ -87,16 +88,17 @@ angular
      * @returns {*}
      */
     var getDetailTabsList = function(type, isPipelineRunning) {
-      var tabsList = [],
-        executionMode = $scope.activeConfigStatus.executionMode;
+      var tabsList = [];
+      var executionMode = $scope.activeConfigStatus.executionMode;
+      var clusterExecutionModePipeline = _.contains(pipelineConstant.CLUSTER_MODES, executionMode);
       switch(type) {
         case pipelineConstant.PIPELINE:
           if (isPipelineRunning) {
-            if (executionMode === pipelineConstant.CLUSTER || executionMode === pipelineConstant.CLUSTER_BATCH ||
-                executionMode === pipelineConstant.CLUSTER_YARN_STREAMING || executionMode === pipelineConstant.CLUSTER_MESOS_STREAMING) {
+            if (clusterExecutionModePipeline) {
               tabsList = [summaryTab, infoTab, configurationTab, historyTab];
             } else {
-              tabsList = [summaryTab, errorTab, infoTab, configurationTab, rulesTab, historyTab];
+              tabsList =
+                [summaryTab, errorTab, infoTab, configurationTab, rulesTab, historyTab];
             }
           } else {
             tabsList = [infoTab, configurationTab, rulesTab, historyTab];
@@ -105,8 +107,7 @@ angular
           return tabsList;
         case pipelineConstant.STAGE_INSTANCE:
           if (isPipelineRunning) {
-            if (executionMode === pipelineConstant.CLUSTER || executionMode === pipelineConstant.CLUSTER_BATCH ||
-              executionMode === pipelineConstant.CLUSTER_YARN_STREAMING || executionMode === pipelineConstant.CLUSTER_MESOS_STREAMING) {
+            if (clusterExecutionModePipeline) {
               tabsList = [summaryTab, infoTab, configurationTab];
             } else {
               tabsList = [summaryTab, errorTab, infoTab, configurationTab];
@@ -115,15 +116,18 @@ angular
             tabsList = [infoTab, configurationTab];
           }
 
+          if (authService.isAuthorized([userRoles.admin])) {
+            tabsList.push(externalLibrariesTab);
+          }
+
           if ($scope.detailPaneConfigDefn && $scope.detailPaneConfigDefn.rawSourceDefinition) {
-            tabsList.push(rawPreviewTab);
+
           }
 
           return tabsList;
         case pipelineConstant.LINK:
           if (isPipelineRunning) {
-            if (executionMode === pipelineConstant.CLUSTER || executionMode === pipelineConstant.CLUSTER_BATCH ||
-              executionMode === pipelineConstant.CLUSTER_YARN_STREAMING || executionMode === pipelineConstant.CLUSTER_MESOS_STREAMING) {
+            if (clusterExecutionModePipeline) {
               return [dataRulesTab, dataDriftRulesTab, infoTab];
             } else {
               return [dataSummaryTab, dataRulesTab, dataDriftRulesTab, infoTab];
@@ -131,7 +135,6 @@ angular
           } else {
             return [infoTab, dataRulesTab, dataDriftRulesTab];
           }
-          break;
       }
     };
 
@@ -271,6 +274,8 @@ angular
 
             if (config.errorStage && issuesMap.stageIssues && issuesMap.stageIssues[config.errorStage.instanceName]) {
               issues.push.apply(issues, issuesMap.stageIssues[config.errorStage.instanceName]);
+            } if (config.testOriginStage && issuesMap.stageIssues && issuesMap.stageIssues[config.testOriginStage.instanceName]) {
+              issues.push.apply(issues, issuesMap.stageIssues[config.testOriginStage.instanceName]);
             } else if (config.statsAggregatorStage && issuesMap.stageIssues &&
               issuesMap.stageIssues[config.statsAggregatorStage.instanceName]) {
               issues.push.apply(issues, issuesMap.stageIssues[config.statsAggregatorStage.instanceName]);

@@ -15,10 +15,6 @@
  */
 package com.streamsets.datacollector.event.binding;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -27,6 +23,9 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.streamsets.datacollector.event.dto.AckEvent;
+import com.streamsets.datacollector.event.dto.BlobDeleteEvent;
+import com.streamsets.datacollector.event.dto.BlobDeleteVersionEvent;
+import com.streamsets.datacollector.event.dto.BlobStoreEvent;
 import com.streamsets.datacollector.event.dto.ClientEvent;
 import com.streamsets.datacollector.event.dto.DisconnectedSsoCredentialsEvent;
 import com.streamsets.datacollector.event.dto.Event;
@@ -35,13 +34,19 @@ import com.streamsets.datacollector.event.dto.PingFrequencyAdjustmentEvent;
 import com.streamsets.datacollector.event.dto.PipelineBaseEvent;
 import com.streamsets.datacollector.event.dto.PipelineSaveEvent;
 import com.streamsets.datacollector.event.dto.PipelineSaveRulesEvent;
+import com.streamsets.datacollector.event.dto.PipelineStartEvent;
 import com.streamsets.datacollector.event.dto.PipelineStatusEvent;
 import com.streamsets.datacollector.event.dto.PipelineStatusEvents;
 import com.streamsets.datacollector.event.dto.PipelineStopAndDeleteEvent;
 import com.streamsets.datacollector.event.dto.SDCInfoEvent;
+import com.streamsets.datacollector.event.dto.SDCProcessMetricsEvent;
+import com.streamsets.datacollector.event.dto.SaveConfigurationEvent;
 import com.streamsets.datacollector.event.dto.ServerEvent;
 import com.streamsets.datacollector.event.dto.SyncAclEvent;
 import com.streamsets.datacollector.event.json.AckEventJson;
+import com.streamsets.datacollector.event.json.BlobDeleteEventJson;
+import com.streamsets.datacollector.event.json.BlobDeleteVersionEventJson;
+import com.streamsets.datacollector.event.json.BlobStoreEventJson;
 import com.streamsets.datacollector.event.json.ClientEventJson;
 import com.streamsets.datacollector.event.json.DisconnectedSsoCredentialsEventJson;
 import com.streamsets.datacollector.event.json.EventJson;
@@ -49,12 +54,19 @@ import com.streamsets.datacollector.event.json.PingFrequencyAdjustmentEventJson;
 import com.streamsets.datacollector.event.json.PipelineBaseEventJson;
 import com.streamsets.datacollector.event.json.PipelineSaveEventJson;
 import com.streamsets.datacollector.event.json.PipelineSaveRulesEventJson;
+import com.streamsets.datacollector.event.json.PipelineStartEventJson;
 import com.streamsets.datacollector.event.json.PipelineStatusEventJson;
 import com.streamsets.datacollector.event.json.PipelineStatusEventsJson;
 import com.streamsets.datacollector.event.json.PipelineStopAndDeleteEventJson;
 import com.streamsets.datacollector.event.json.SDCInfoEventJson;
+import com.streamsets.datacollector.event.json.SDCProcessMetricsEventJson;
+import com.streamsets.datacollector.event.json.SaveConfigurationEventJson;
 import com.streamsets.datacollector.event.json.ServerEventJson;
 import com.streamsets.datacollector.event.json.SyncAclEventJson;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 
 public class MessagingJsonToFromDto {
@@ -108,6 +120,9 @@ public class MessagingJsonToFromDto {
       case SDC_INFO_EVENT:
         eventJson = MessagingDtoJsonMapper.INSTANCE.toSDCInfoEventJson((SDCInfoEvent) event);
         break;
+      case SDC_PROCESS_METRICS_EVENT:
+        eventJson = MessagingDtoJsonMapper.INSTANCE.toSDCMetricsEventJson((SDCProcessMetricsEvent) event);
+        break;
       case SYNC_ACL:
         eventJson = MessagingDtoJsonMapper.INSTANCE.toSyncAclEventJson((SyncAclEvent)event);
         break;
@@ -115,12 +130,26 @@ public class MessagingJsonToFromDto {
         eventJson = MessagingDtoJsonMapper.INSTANCE.toPipelineStopAndDeleteEventJson((PipelineStopAndDeleteEvent) event);
         break;
       case START_PIPELINE:
+        eventJson = MessagingDtoJsonMapper.INSTANCE.toPipelineStartEventJson((PipelineStartEvent) event);
+        break;
       case STOP_PIPELINE:
       case VALIDATE_PIPELINE:
       case RESET_OFFSET_PIPELINE:
       case DELETE_HISTORY_PIPELINE:
       case DELETE_PIPELINE:
         eventJson = MessagingDtoJsonMapper.INSTANCE.toPipelineBaseEventJson((PipelineBaseEvent) event);
+        break;
+      case BLOB_STORE:
+        eventJson = MessagingDtoJsonMapper.INSTANCE.toBlobStoreEventJson((BlobStoreEvent) event);
+        break;
+      case BLOB_DELETE:
+        eventJson = MessagingDtoJsonMapper.INSTANCE.toBlobDeleteEventJson((BlobDeleteEvent) event);
+        break;
+      case BLOB_DELETE_VERSION:
+        eventJson = MessagingDtoJsonMapper.INSTANCE.toBlobDeleteVersionEventJson((BlobDeleteVersionEvent) event);
+        break;
+      case SAVE_CONFIGURATION:
+        eventJson = MessagingDtoJsonMapper.INSTANCE.toSaveConfigurationEventJson((SaveConfigurationEvent) event);
         break;
       case SSO_DISCONNECTED_MODE_CREDENTIALS:
         eventJson =
@@ -188,6 +217,13 @@ public class MessagingJsonToFromDto {
         serverEvent.setEvent(MessagingDtoJsonMapper.INSTANCE.asSDCInfoEventDto(sdcInfoEventJson));
         break;
       }
+      case SDC_PROCESS_METRICS_EVENT: {
+        TypeReference<SDCProcessMetricsEventJson> typeRef = new TypeReference<SDCProcessMetricsEventJson>() {
+        };
+        SDCProcessMetricsEventJson SDCProcessMetricsEventJson = deserialize(serverEventJson.getPayload(), typeRef);
+        serverEvent.setEvent(MessagingDtoJsonMapper.INSTANCE.asSDCMetricsEventDto(SDCProcessMetricsEventJson));
+        break;
+      }
       case STATUS_PIPELINE: {
         TypeReference<PipelineStatusEventJson> typeRef = new TypeReference<PipelineStatusEventJson>() {
         };
@@ -220,9 +256,18 @@ public class MessagingJsonToFromDto {
             pipelineStopAndDeleteEventJson));
         break;
       }
+      case START_PIPELINE: {
+        TypeReference<PipelineStartEventJson> typeRef = new TypeReference<PipelineStartEventJson>() {
+        };
+        PipelineStartEventJson pipelineStartEventJson = deserialize(
+          serverEventJson.getPayload(),
+          typeRef
+        );
+        serverEvent.setEvent(MessagingDtoJsonMapper.INSTANCE.asPipelineStartEventDto(pipelineStartEventJson));
+        break;
+      }
       case DELETE_HISTORY_PIPELINE:
       case DELETE_PIPELINE:
-      case START_PIPELINE:
       case STOP_PIPELINE:
       case VALIDATE_PIPELINE:
       case RESET_OFFSET_PIPELINE: {
@@ -230,6 +275,34 @@ public class MessagingJsonToFromDto {
         };
         PipelineBaseEventJson pipelineBaseEventJson = deserialize(serverEventJson.getPayload(), typeRef);
         serverEvent.setEvent(MessagingDtoJsonMapper.INSTANCE.asPipelineBaseEventDto(pipelineBaseEventJson));
+        break;
+      }
+      case BLOB_STORE: {
+        TypeReference<BlobStoreEventJson> typeRef = new TypeReference<BlobStoreEventJson>() {
+        };
+        BlobStoreEventJson eventJson = deserialize(serverEventJson.getPayload(), typeRef);
+        serverEvent.setEvent(MessagingDtoJsonMapper.INSTANCE.asBlobStoreEventDto(eventJson));
+        break;
+      }
+      case BLOB_DELETE_VERSION: {
+        TypeReference<BlobDeleteVersionEventJson> typeRef = new TypeReference<BlobDeleteVersionEventJson>() {
+        };
+        BlobDeleteVersionEventJson eventJson = deserialize(serverEventJson.getPayload(), typeRef);
+        serverEvent.setEvent(MessagingDtoJsonMapper.INSTANCE.asBlobDeleteVersionEventDto(eventJson));
+        break;
+      }
+      case BLOB_DELETE: {
+        TypeReference<BlobDeleteEventJson> typeRef = new TypeReference<BlobDeleteEventJson>() {
+        };
+        BlobDeleteEventJson eventJson = deserialize(serverEventJson.getPayload(), typeRef);
+        serverEvent.setEvent(MessagingDtoJsonMapper.INSTANCE.asBlobDeleteEventDto(eventJson));
+        break;
+      }
+      case SAVE_CONFIGURATION: {
+        TypeReference<SaveConfigurationEventJson> typeRef = new TypeReference<SaveConfigurationEventJson>() {
+        };
+        SaveConfigurationEventJson eventJson = deserialize(serverEventJson.getPayload(), typeRef);
+        serverEvent.setEvent(MessagingDtoJsonMapper.INSTANCE.asSaveConfigurationEventDto(eventJson));
         break;
       }
       case SSO_DISCONNECTED_MODE_CREDENTIALS: {

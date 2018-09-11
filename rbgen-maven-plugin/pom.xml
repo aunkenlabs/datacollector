@@ -22,7 +22,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.streamsets</groupId>
   <artifactId>streamsets-datacollector-rbgen-maven-plugin</artifactId>
-  <version>3.4.0-SNAPSHOT</version>
+  <version>3.4.2</version>
   <description>StreamSets Data Collector RB Gen Maven Plugin</description>
   <name>StreamSets Data Collector RB Gen Maven Plugin</name>
   <packaging>maven-plugin</packaging>
@@ -42,6 +42,7 @@
 
     <commons-io.version>2.4</commons-io.version>
     <jackson.version>2.4.3</jackson.version>
+    <maven-deploy-plugin-version>2.8.2</maven-deploy-plugin-version>
   </properties>
 
   <dependencies>
@@ -99,10 +100,15 @@
           <target>${javaVersion}</target>
         </configuration>
       </plugin>
+	<plugin>
+         <groupId>org.apache.maven.plugins</groupId>
+         <artifactId>maven-project-info-reports-plugin</artifactId>
+         <version>2.8</version>
+      </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-deploy-plugin</artifactId>
-        <version>2.8.2</version>
+        <version>${maven-deploy-plugin-version}</version>
         <configuration>
           <skip>true</skip>
         </configuration>

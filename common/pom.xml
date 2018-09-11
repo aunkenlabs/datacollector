@@ -23,18 +23,17 @@
   <parent>
     <groupId>com.streamsets</groupId>
     <artifactId>streamsets-datacollector-root</artifactId>
-    <version>3.4.0-SNAPSHOT</version>
+    <version>3.4.2</version>
     <relativePath>../root</relativePath>
   </parent>
   <artifactId>streamsets-datacollector-common</artifactId>
-  <version>3.4.0-SNAPSHOT</version>
+  <version>3.4.2</version>
   <description>StreamSets Data Collector Common</description>
   <name>StreamSets Data Collector Common</name>
   <packaging>jar</packaging>
 
   <properties>
     <commons-csv.version>1.5</commons-csv.version>
-    <commons-lang.version>3.4</commons-lang.version>
   </properties>
 
   <dependencies>
@@ -104,7 +103,7 @@
     <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-lang3</artifactId>
-      <version>${commons-lang.version}</version>
+      <version>${commons-lang3.version}</version>
       <scope>compile</scope>
     </dependency>
   </dependencies>

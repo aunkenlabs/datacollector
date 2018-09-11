@@ -23,11 +23,11 @@
   <parent>
     <groupId>com.streamsets</groupId>
     <artifactId>streamsets-datacollector-root-lib</artifactId>
-    <version>3.4.0-SNAPSHOT</version>
+    <version>3.4.2</version>
     <relativePath>../root-lib</relativePath>
   </parent>
   <artifactId>streamsets-datacollector-cassandra-protolib</artifactId>
-  <version>3.4.0-SNAPSHOT</version>
+  <version>3.4.2</version>
   <description>StreamSets Data Collector Cassandra ProtoLib</description>
   <name>StreamSets Data Collector Cassandra ProtoLib</name>
   <packaging>jar</packaging>
@@ -84,6 +84,10 @@
     <dependency>
       <groupId>com.streamsets</groupId>
       <artifactId>streamsets-datacollector-stagesupport</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.streamsets</groupId>
+      <artifactId>streamsets-datacollector-net-commonlib</artifactId>
     </dependency>
     <dependency>
       <groupId>commons-io</groupId>

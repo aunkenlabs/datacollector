@@ -48,6 +48,7 @@ import com.streamsets.datacollector.store.PipelineStoreException;
 import com.streamsets.datacollector.store.PipelineStoreTask;
 import com.streamsets.datacollector.store.impl.FileAclStoreTask;
 import com.streamsets.datacollector.store.impl.FilePipelineStoreTask;
+import com.streamsets.datacollector.usagestats.StatsCollector;
 import com.streamsets.datacollector.util.Configuration;
 import com.streamsets.datacollector.util.LockCache;
 import com.streamsets.datacollector.util.LockCacheModule;
@@ -258,6 +259,11 @@ public class TestStandalonePipelineManager {
       return Mockito.mock(LineagePublisherTask.class);
     }
 
+    @Provides @Singleton
+    public StatsCollector provideStatsCollector() {
+      return Mockito.mock(StatsCollector.class);
+    }
+
   }
 
   private void setUpManager(long expiry, long initialThreadExpiryDelay, boolean isDPMEnabled) {
@@ -358,6 +364,9 @@ public class TestStandalonePipelineManager {
     pipelineStoreTask.stop();
     pipelineStateStore.saveState("user", "remote", "0", PipelineStatus.CONNECTING, "blah", null, ExecutionMode
         .STANDALONE, null, 0, 0);
+
+    // Make sure that handover between the sub-tests is done properly
+    assertFalse(((StandaloneAndClusterPipelineManager) pipelineManager).isRunnerPresent("remote", "0"));
 
     setUpManager(StandaloneAndClusterPipelineManager.DEFAULT_RUNNER_EXPIRY_INTERVAL,
         StandaloneAndClusterPipelineManager.DEFAULT_RUNNER_EXPIRY_INITIAL_DELAY,

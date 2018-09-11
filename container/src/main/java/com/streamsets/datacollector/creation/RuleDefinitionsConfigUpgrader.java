@@ -24,16 +24,10 @@ import java.util.Collections;
 import java.util.List;
 
 public class RuleDefinitionsConfigUpgrader implements StageUpgrader {
+
   @Override
-  public List<Config> upgrade(
-      String library,
-      String stageName,
-      String stageInstance,
-      int fromVersion,
-      int toVersion,
-      List<Config> configs
-  ) throws StageException {
-    switch(fromVersion) {
+  public List<Config> upgrade(List<Config> configs, Context context) throws StageException {
+    switch(context.getFromVersion()) {
       case 0:
         upgradeV0ToV1(configs);
         // fall through
@@ -41,7 +35,7 @@ public class RuleDefinitionsConfigUpgrader implements StageUpgrader {
         upgradeV1ToV2(configs);
         break;
       default:
-        throw new IllegalStateException(Utils.format("Unexpected fromVersion {}", fromVersion));
+        throw new IllegalStateException(Utils.format("Unexpected fromVersion {}", context.getFromVersion()));
     }
     return configs;
   }

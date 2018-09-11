@@ -78,6 +78,36 @@ public class SdkJsonDataFormatParserService extends BaseService implements DataF
     return "UTF-8";
   }
 
+  @Override
+  public void setStringBuilderPoolSize(int poolSize) {
+    // Throw away in this test case.
+  }
+
+  @Override
+  public int getStringBuilderPoolSize() {
+    return 1;
+  }
+
+  @Override
+  public boolean isWholeFileFormat() {
+    return false;
+  }
+
+  @Override
+  public long suggestedWholeFileBufferSize() {
+    return 0;
+  }
+
+  @Override
+  public Double wholeFileRateLimit() {
+    return null;
+  }
+
+  @Override
+  public boolean isWholeFileChecksumRequired() {
+    return false;
+  }
+
   private static class DataParserImpl implements DataParser {
 
     private final JsonObjectReader recordReader;

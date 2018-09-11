@@ -23,12 +23,16 @@ import com.streamsets.datacollector.runner.service.DataParserServiceWrapper;
 import com.streamsets.datacollector.util.LambdaUtil;
 import com.streamsets.datacollector.validation.Issue;
 import com.streamsets.pipeline.api.FileRef;
+import com.streamsets.pipeline.api.Record;
+import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.service.Service;
 import com.streamsets.pipeline.api.service.dataformats.DataFormatGeneratorService;
 import com.streamsets.pipeline.api.service.dataformats.DataFormatParserService;
 import com.streamsets.pipeline.api.service.dataformats.DataGenerator;
 import com.streamsets.pipeline.api.service.dataformats.DataParser;
 import com.streamsets.pipeline.api.service.dataformats.DataParserException;
+import com.streamsets.pipeline.api.service.dataformats.WholeFileChecksumAlgorithm;
+import com.streamsets.pipeline.api.service.dataformats.WholeFileExistsAction;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -115,7 +119,7 @@ public class ServiceRuntime implements DataFormatGeneratorService, DataFormatPar
     );
   }
 
-  @Override
+  @Override // From DataFormatParserService, DataFormatGeneratorService
   public String getCharset() {
     return LambdaUtil.privilegedWithClassLoader(
         serviceBean.getDefinition().getStageClassLoader(),
@@ -128,6 +132,95 @@ public class ServiceRuntime implements DataFormatGeneratorService, DataFormatPar
             throw new IllegalStateException("Called on wrong service: " + serviceBean.getService().getClass().getCanonicalName());
           }
         }
+    );
+  }
+
+  @Override // From DataFormatParserService
+  public void setStringBuilderPoolSize(int poolSize) {
+    LambdaUtil.privilegedWithClassLoader(
+      serviceBean.getDefinition().getStageClassLoader(),
+      () -> { ((DataFormatParserService)serviceBean.getService()).setStringBuilderPoolSize(poolSize); return null; }
+    );
+  }
+
+  @Override // From DataFormatParserService
+  public int getStringBuilderPoolSize() {
+    return LambdaUtil.privilegedWithClassLoader(
+        serviceBean.getDefinition().getStageClassLoader(),
+        () -> ((DataFormatParserService)serviceBean.getService()).getStringBuilderPoolSize()
+    );
+  }
+
+  @Override // From DataFormatParserService, DataFormatGeneratorService
+  public boolean isWholeFileFormat() {
+    return LambdaUtil.privilegedWithClassLoader(
+        serviceBean.getDefinition().getStageClassLoader(),
+        () -> {
+          if(serviceBean.getService() instanceof DataFormatGeneratorService) {
+            return ((DataFormatGeneratorService)serviceBean.getService()).isWholeFileFormat();
+          } else if(serviceBean.getService() instanceof  DataFormatParserService) {
+            return ((DataFormatParserService) serviceBean.getService()).isWholeFileFormat();
+          } else {
+            throw new IllegalStateException("Called on wrong service: " + serviceBean.getService().getClass().getCanonicalName());
+          }
+        }
+    );
+  }
+
+  @Override // From DataFormatGeneratorService
+  public String wholeFileFilename(Record record) throws StageException {
+   return LambdaUtil.privilegedWithClassLoader(
+        serviceBean.getDefinition().getStageClassLoader(),
+         StageException.class,
+        () -> ((DataFormatGeneratorService)serviceBean.getService()).wholeFileFilename(record)
+    );
+  }
+
+  @Override // From DataFormatGeneratorService
+  public WholeFileExistsAction wholeFileExistsAction() {
+    return LambdaUtil.privilegedWithClassLoader(
+      serviceBean.getDefinition().getStageClassLoader(),
+      () -> ((DataFormatGeneratorService)serviceBean.getService()).wholeFileExistsAction()
+    );
+  }
+
+  @Override // From DataFormatGeneratorService
+  public boolean wholeFileIncludeChecksumInTheEvents() {
+    return LambdaUtil.privilegedWithClassLoader(
+      serviceBean.getDefinition().getStageClassLoader(),
+      () -> ((DataFormatGeneratorService)serviceBean.getService()).wholeFileIncludeChecksumInTheEvents()
+    );
+  }
+
+  @Override // From DataFormatGeneratorService
+  public WholeFileChecksumAlgorithm wholeFileChecksumAlgorithm() {
+    return LambdaUtil.privilegedWithClassLoader(
+      serviceBean.getDefinition().getStageClassLoader(),
+      () -> ((DataFormatGeneratorService)serviceBean.getService()).wholeFileChecksumAlgorithm()
+    );
+  }
+
+  @Override // From DataFormatParserService
+  public long suggestedWholeFileBufferSize() {
+    return LambdaUtil.privilegedWithClassLoader(
+      serviceBean.getDefinition().getStageClassLoader(),
+      () -> ((DataFormatParserService)serviceBean.getService()).suggestedWholeFileBufferSize()
+    );
+  }
+
+  @Override // From DataFormatParserService
+  public Double wholeFileRateLimit() throws StageException {
+    return LambdaUtil.privilegedWithClassLoader(
+      serviceBean.getDefinition().getStageClassLoader(),
+      () -> ((DataFormatParserService)serviceBean.getService()).wholeFileRateLimit()
+    );
+  }
+
+  @Override // From DataFormatParserService
+  public boolean isWholeFileChecksumRequired() {
+    return LambdaUtil.privilegedWithClassLoader(
+      serviceBean.getDefinition().getStageClassLoader(),
+      () -> ((DataFormatParserService)serviceBean.getService()).isWholeFileChecksumRequired()
     );
   }
 

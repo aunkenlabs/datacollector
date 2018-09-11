@@ -24,6 +24,8 @@ import com.streamsets.pipeline.api.service.ServiceDef;
 import com.streamsets.pipeline.api.service.dataformats.DataFormatGeneratorService;
 import com.streamsets.pipeline.api.service.dataformats.DataGenerator;
 import com.streamsets.pipeline.api.service.dataformats.DataGeneratorException;
+import com.streamsets.pipeline.api.service.dataformats.WholeFileChecksumAlgorithm;
+import com.streamsets.pipeline.api.service.dataformats.WholeFileExistsAction;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -54,6 +56,31 @@ public class SdkJsonDataFormatGeneratorService extends BaseService implements Da
   @Override
   public String getCharset() {
     return "UTF-8";
+  }
+
+  @Override
+  public boolean isWholeFileFormat() {
+    return false;
+  }
+
+  @Override
+  public String wholeFileFilename(Record record) {
+    return null;
+  }
+
+  @Override
+  public WholeFileExistsAction wholeFileExistsAction() {
+    return null;
+  }
+
+  @Override
+  public boolean wholeFileIncludeChecksumInTheEvents() {
+    return false;
+  }
+
+  @Override
+  public WholeFileChecksumAlgorithm wholeFileChecksumAlgorithm() {
+    return null;
   }
 
   private static class DataGeneratorImpl implements DataGenerator {

@@ -15,16 +15,17 @@
  */
 package com.streamsets.datacollector.runner;
 
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.Timer;
 import com.streamsets.datacollector.creation.InterceptorBean;
+import com.streamsets.datacollector.metrics.MetricsConfigurator;
 import com.streamsets.datacollector.util.LambdaUtil;
 import com.streamsets.datacollector.validation.Issue;
 import com.streamsets.pipeline.api.ConfigIssue;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.interceptor.Interceptor;
 
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Runtime version of interceptor that wraps all methods of the interceptor to make sure that the proper classloader
@@ -34,6 +35,9 @@ public class InterceptorRuntime implements Interceptor {
 
   private final InterceptorBean bean;
   private InterceptorContext context;
+
+  // Metrics
+  private Timer processingTimer;
 
   public InterceptorRuntime(
     InterceptorBean bean
@@ -45,25 +49,47 @@ public class InterceptorRuntime implements Interceptor {
     this.context = context;
   }
 
+  public InterceptorContext getContext() {
+    return context;
+  }
+
   public List<Issue> init() {
-    //TODO: Parameters should be passed in constructor similarly as we're passing StageConfiguration for stages
-    return (List)init(Collections.emptyMap(), context);
+    MetricRegistry metrics = getContext().getMetrics();
+    String metricsBaseName = "interceptor.stage."
+      + this.context.getStageInstanceName()
+      + "."
+      + bean.getMetricName()
+    ;
+
+    processingTimer = MetricsConfigurator.createStageTimer(
+      metrics,
+      metricsBaseName + ".batchProcessing",
+      context.getPipelineId(),
+      context.getRev()
+    );
+
+    return (List)init(context);
   }
 
   @Override
-  public List<ConfigIssue> init(Map<String, String> parameters, Context context) {
+  public List<ConfigIssue> init(Context context) {
     return LambdaUtil.privilegedWithClassLoader(
         bean.getDefinition().getStageClassLoader(),
-        () -> bean.getInterceptor().init(parameters, context)
+        () -> bean.getInterceptor().init(context)
     );
   }
 
   @Override
   public List<Record> intercept(List<Record> records) {
-   return LambdaUtil.privilegedWithClassLoader(
+    Timer.Context timerContext = processingTimer.time();
+    try {
+      return LambdaUtil.privilegedWithClassLoader(
         bean.getDefinition().getStageClassLoader(),
         () -> bean.getInterceptor().intercept(records)
-    );
+      );
+    } finally {
+     timerContext.stop();
+    }
   }
 
   @Override

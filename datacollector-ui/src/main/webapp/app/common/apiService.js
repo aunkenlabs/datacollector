@@ -409,11 +409,14 @@ angular.module('dataCollectorApp.common')
        *
        * @returns {*}
        */
-      getStageLibrariesExtras: function() {
+      getStageLibrariesExtras: function(libraryId) {
         var url = apiBase + '/stageLibraries/extras/list';
         return $http({
           method: 'GET',
-          url: url
+          url: url,
+          params: {
+            libraryId: libraryId ? libraryId : ''
+          }
         });
       },
 
@@ -580,13 +583,18 @@ angular.module('dataCollectorApp.common')
        *
        * @param name
        * @param description
+       * @param pipelineType
        */
-      createNewPipelineConfig: function(name, description) {
-        var url = apiBase + '/pipeline/' + encodeURIComponent(name) + '?autoGeneratePipelineId=true&description=' + description;
-
+      createNewPipelineConfig: function(name, description, pipelineType) {
+        var url = apiBase + '/pipeline/' + encodeURIComponent(name);
         return $http({
           method: 'PUT',
-          url: url
+          url: url,
+          params: {
+            autoGeneratePipelineId: true,
+            description: description,
+            pipelineType: pipelineType
+          }
         });
       },
 
@@ -842,6 +850,7 @@ angular.module('dataCollectorApp.common')
        * @param endStage
        * @param timeout
        * @param edgeHttpUrl
+       * @param testOrigin
        * @returns {*}
        */
       createPreview: function(
@@ -854,7 +863,8 @@ angular.module('dataCollectorApp.common')
         stageOutputList,
         endStage,
         timeout,
-        edgeHttpUrl
+        edgeHttpUrl,
+        testOrigin
       ) {
         if (!batchSize) {
           batchSize = 10;
@@ -873,7 +883,8 @@ angular.module('dataCollectorApp.common')
             timeout: timeout,
             skipLifecycleEvents: skipLifecycleEvents,
             endStage: endStage,
-            edge: !!edgeHttpUrl
+            edge: !!edgeHttpUrl,
+            testOrigin: !!testOrigin
           },
           data: stageOutputList || []
         });
@@ -897,7 +908,6 @@ angular.module('dataCollectorApp.common')
           }
         });
       },
-
 
       /**
        * Fetches Preview Data
@@ -1677,6 +1687,26 @@ angular.module('dataCollectorApp.common')
     };
 
     api.system = {
+      /**
+       * Get stats and opt in/out status
+       *
+       * @returns {*}
+       */
+      getStats: () => $http({
+        method: 'GET',
+        url: apiBase + '/system/stats'
+      }),
+
+      /**
+       * Set opt in/out status for stats
+       *
+       * @returns {*}
+       */
+      setOptInStatus: isOptIn => $http({
+        method: 'POST',
+        url: apiBase + '/system/stats?active=' + (!!isOptIn)
+      }),
+
       /**
        * Get all support bundle generators
        *

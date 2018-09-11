@@ -33,6 +33,8 @@ import com.streamsets.datacollector.config.RawSourceDefinition;
 import com.streamsets.datacollector.config.ServiceDefinition;
 import com.streamsets.datacollector.config.StageConfiguration;
 import com.streamsets.datacollector.config.StageDefinition;
+import com.streamsets.datacollector.config.StageLibraryDefinition;
+import com.streamsets.datacollector.config.StageLibraryDelegateDefinitition;
 import com.streamsets.datacollector.creation.PipelineConfigBean;
 import com.streamsets.datacollector.el.ElConstantDefinition;
 import com.streamsets.datacollector.el.ElFunctionDefinition;
@@ -49,6 +51,7 @@ import com.streamsets.pipeline.api.DeliveryGuarantee;
 import com.streamsets.pipeline.api.ErrorListener;
 import com.streamsets.pipeline.api.ExecutionMode;
 import com.streamsets.pipeline.api.Executor;
+import com.streamsets.pipeline.api.HideStage;
 import com.streamsets.pipeline.api.OffsetCommitTrigger;
 import com.streamsets.pipeline.api.OffsetCommitter;
 import com.streamsets.pipeline.api.Processor;
@@ -730,6 +733,21 @@ public class MockStages {
     }
 
     @Override
+    public List<StageLibraryDelegateDefinitition> getStageLibraryDelegateDefinitions() {
+      return Collections.emptyList();
+    }
+
+    @Override
+    public StageLibraryDelegateDefinitition getStageLibraryDelegateDefinition(String stageLibrary, Class exportedInterface) {
+      return null;
+    }
+
+    @Override
+    public List<StageLibraryDefinition> getLoadedStageLibraries() {
+      return Collections.emptyList();
+    }
+
+    @Override
     public void releaseStageClassLoader(ClassLoader classLoader) {
     }
 
@@ -767,7 +785,9 @@ public class MockStages {
           .withProducingEvents(true)
           .build();
 
-
+        StageDefinition hiddenPDef = new StageDefinitionBuilder(cl, MProcessor.class, "hiddenProcessor")
+          .withHideStage(Collections.singletonList(HideStage.Type.FIELD_PROCESSOR))
+          .build();
         StageDefinition pDef = new StageDefinitionBuilder(cl, MProcessor.class, "processorName")
           .build();
 
@@ -920,6 +940,7 @@ public class MockStages {
               socDef,
               seDef,
               pushSourceDef,
+              hiddenPDef,
               pDef,
               tDef,
               tEventDef,
@@ -985,6 +1006,7 @@ public class MockStages {
               false,
               false,
               false,
+              Collections.emptyList(),
               Collections.emptyList()
           );
           stages.put(name, newDef);
@@ -1192,11 +1214,13 @@ public class MockStages {
         null,
         createPipelineConfigs(),
         null,
+        Collections.emptyList(),
         stages,
         getErrorStageConfig(),
         getStatsAggregatorStageConfig(),
         Collections.emptyList(),
-        Collections.emptyList()
+        Collections.emptyList(),
+        null
     );
     Map<String, Object> metadata = new HashMap<>();
     metadata.put("a", "A");
@@ -1224,7 +1248,8 @@ public class MockStages {
         null,
         Arrays.asList(processor, processor2),
         Collections.emptyMap(),
-        Collections.emptyList()
+        Collections.emptyList(),
+        null
     );
     fragment.setFragmentInstanceId("fragment_01");
 
@@ -1256,7 +1281,8 @@ public class MockStages {
         .build();
     stages.add(target);
 
-    PipelineConfiguration pipelineConfiguration = new PipelineConfiguration(PipelineStoreTask.SCHEMA_VERSION,
+    PipelineConfiguration pipelineConfiguration = new PipelineConfiguration(
+        PipelineStoreTask.SCHEMA_VERSION,
         PipelineConfigBean.VERSION,
         "pipelineId",
         UUID.randomUUID(),
@@ -1269,7 +1295,8 @@ public class MockStages {
         getErrorStageConfig(),
         getStatsAggregatorStageConfig(),
         Collections.emptyList(),
-        Collections.emptyList()
+        Collections.emptyList(),
+        null
     );
     Map<String, Object> metadata = new HashMap<>();
     metadata.put("a", "A");
@@ -1293,7 +1320,8 @@ public class MockStages {
         null,
         Collections.singletonList(processor2),
         Collections.emptyMap(),
-        Collections.emptyList()
+        Collections.emptyList(),
+        null
     );
     nestedFragment.setFragmentInstanceId("nestedFragment_01");
 
@@ -1330,7 +1358,8 @@ public class MockStages {
         Collections.singletonList(nestedFragment),
         ImmutableList.of(processor1, fragmentProcessor),
         Collections.emptyMap(),
-        Collections.emptyList()
+        Collections.emptyList(),
+        null
     );
     fragment.setFragmentInstanceId("fragment_01");
 
@@ -1368,7 +1397,8 @@ public class MockStages {
             .build();
     stages.add(fragmentProcessor2);
 
-    PipelineConfiguration pipelineConfiguration = new PipelineConfiguration(PipelineStoreTask.SCHEMA_VERSION,
+    PipelineConfiguration pipelineConfiguration = new PipelineConfiguration(
+        PipelineStoreTask.SCHEMA_VERSION,
         PipelineConfigBean.VERSION,
         "pipelineId",
         UUID.randomUUID(),
@@ -1381,7 +1411,8 @@ public class MockStages {
         getErrorStageConfig(),
         getStatsAggregatorStageConfig(),
         Collections.emptyList(),
-        Collections.emptyList()
+        Collections.emptyList(),
+        null
     );
     Map<String, Object> metadata = new HashMap<>();
     metadata.put("a", "A");
@@ -1505,6 +1536,27 @@ public class MockStages {
     metadata.put("a", "A");
     pipelineConfiguration.setMetadata(metadata);
     return pipelineConfiguration;
+  }
+
+  @SuppressWarnings("unchecked")
+  public static PipelineConfiguration createPipelineWithHiddenStage() {
+    List<StageConfiguration> stages = new ArrayList<>();
+    StageConfiguration source = new StageConfigurationBuilder("s", "sourceName")
+      .withOutputLanes("s")
+      .build();
+    stages.add(source);
+    StageConfiguration processor = new StageConfigurationBuilder("p", "hiddenProcessor")
+      .withInputLanes("s")
+      .withOutputLanes("p")
+      .build();
+    stages.add(processor);
+    StageConfiguration target = new StageConfigurationBuilder("t", "targetName")
+      .withInputLanes("p")
+      .build();
+    stages.add(target);
+
+    PipelineConfiguration pipelineConfiguration = pipeline(stages);
+    return pipeline(stages);
   }
 
   @SuppressWarnings("unchecked")

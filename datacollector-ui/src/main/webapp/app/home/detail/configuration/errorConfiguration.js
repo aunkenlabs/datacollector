@@ -13,14 +13,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/**
- * Controller for Error Configuration.
- */
+
+// Controller for Error Configuration.
 angular
   .module('dataCollectorApp.home')
   .controller('ErrorConfigurationController', function ($scope) {
-    $scope.detailPaneConfig = $scope.errorStageConfig;
-    $scope.$watch('errorStageConfig', function() {
+    var initialize = function() {
       $scope.detailPaneConfig = $scope.errorStageConfig;
+      $scope.detailPaneServices = [];
+      angular.forEach($scope.detailPaneConfig.services, function(serviceConfig) {
+        $scope.detailPaneServices.push({
+          definition: pipelineService.getServiceDefinition(serviceConfig.service),
+          config: serviceConfig
+        });
+      });
+    };
+
+    $scope.$watch('errorStageConfig', function() {
+      initialize();
     });
+
+    initialize();
   });

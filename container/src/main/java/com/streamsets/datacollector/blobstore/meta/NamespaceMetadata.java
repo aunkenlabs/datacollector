@@ -43,8 +43,18 @@ public class NamespaceMetadata {
   }
 
   @JsonIgnore
+  public void removeObject(String name) {
+    objects.remove(name);
+  }
+
+  @JsonIgnore
   public ObjectMetadata getObject(String object) {
     return objects.get(object);
+  }
+
+  @JsonIgnore
+  public Map<String, ObjectMetadata> getObjects() {
+    return objects;
   }
 
   @JsonIgnore

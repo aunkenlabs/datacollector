@@ -26,10 +26,10 @@ import com.streamsets.pipeline.stage.destination.jdbc.Groups;
 
 @StageDef(
     version = 1,
-    label = "Postgres Metadata",
-    description = "Create/alter tables in Postgres to match record structure",
+    label = "PostgreSQL Metadata",
+    description = "Create/alter tables in PostgreSQL to match record structure",
     icon = "rdbms.png",
-    onlineHelpRefUrl ="index.html#datacollector/UserGuide/Processors/JDBCMetadata.html#task_lpv_zsh_qcb"
+    onlineHelpRefUrl ="index.html?contextID=task_lpv_zsh_qcb"
 )
 @ConfigGroups(Groups.class)
 @GenerateResourceBundle

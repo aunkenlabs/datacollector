@@ -16,6 +16,7 @@
 package com.streamsets.datacollector.bundles;
 
 import com.google.common.collect.ImmutableList;
+import com.streamsets.datacollector.blobstore.BlobStoreTask;
 import com.streamsets.datacollector.bundles.content.SimpleGenerator;
 import com.streamsets.datacollector.execution.PipelineStateStore;
 import com.streamsets.datacollector.execution.SnapshotStore;
@@ -33,32 +34,38 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TestSupportBundleManager {
   private static final Logger LOG = LoggerFactory.getLogger(TestSupportBundleManager.class);
+  private final static String SDC_ID = "super-secret-id";
 
   private static SupportBundleManager manager;
+
 
   @BeforeClass
   public static void createManager() {
     Configuration configuration = mock(Configuration.class);
     RuntimeInfo runtimeInfo = mock(RuntimeInfo.class);
-    when(runtimeInfo.getId()).thenReturn("super-secret-id");
+    when(runtimeInfo.getId()).thenReturn(SDC_ID);
     when(runtimeInfo.isAclEnabled()).thenReturn(false);
     BuildInfo buildInfo = mock(BuildInfo.class);
     when(buildInfo.getVersion()).thenReturn("666");
     PipelineStoreTask pipelineStoreTask = mock(PipelineStoreTask.class);
     PipelineStateStore stateStore = mock(PipelineStateStore.class);
     SnapshotStore snapshotStore = mock(SnapshotStore.class);
+    BlobStoreTask blobStore = mock(BlobStoreTask.class);
 
     manager = new SupportBundleManager(
       new SafeScheduledExecutorService(1, "supportBundleExecutor"),
@@ -66,6 +73,7 @@ public class TestSupportBundleManager {
       pipelineStoreTask,
       stateStore,
       snapshotStore,
+      blobStore,
       runtimeInfo,
       buildInfo
     );
@@ -93,8 +101,42 @@ public class TestSupportBundleManager {
   }
 
   @Test
-  public void testSimpleBundleCreation() throws Exception {
-    ZipFile bundle = zipFile(ImmutableList.of(SimpleGenerator.class.getSimpleName()));
+  public void testSupportBundlePaths() throws Exception {
+    SupportBundle bundle = manager.generateNewBundle(Collections.singletonList(SimpleGenerator.class.getSimpleName()), BundleType.SUPPORT);
+
+    // Prefixes
+    assertTrue(bundle.getBundleName().startsWith("bundle_"));
+    assertFalse(bundle.getBundleKey().startsWith("stats_"));
+
+    // Ids are present in the names
+    assertTrue(bundle.getBundleName().contains(SDC_ID));
+    assertTrue(bundle.getBundleKey().contains(SDC_ID));
+
+    // Bundle ends with .zip
+    assertTrue(bundle.getBundleKey().endsWith(".zip"));
+    assertTrue(bundle.getBundleName().endsWith(".zip"));
+  }
+
+  @Test
+  public void testStatsBundlePaths() throws Exception {
+    SupportBundle bundle = manager.generateNewBundle(Collections.singletonList(SimpleGenerator.class.getSimpleName()), BundleType.STATS);
+
+    // Prefixes
+    assertTrue(bundle.getBundleName().startsWith("stats_"));
+    assertTrue(bundle.getBundleKey().startsWith("stats/"));
+
+    // Ids are not present in the names
+    assertFalse(bundle.getBundleName().contains(SDC_ID));
+    assertFalse(bundle.getBundleKey().contains(SDC_ID));
+
+    // Bundle ends with .zip
+    assertTrue(bundle.getBundleKey().endsWith(".zip"));
+    assertTrue(bundle.getBundleName().endsWith(".zip"));
+  }
+
+  @Test
+  public void testSimpleSupportBundleCreation() throws Exception {
+    ZipFile bundle = zipFile(ImmutableList.of(SimpleGenerator.class.getSimpleName()), BundleType.SUPPORT);
     ZipEntry entry;
 
     // Check we have expected files
@@ -104,12 +146,35 @@ public class TestSupportBundleManager {
     entry = bundle.getEntry("generators.properties");
     assertNotNull(entry);
 
+    entry = bundle.getEntry("failed_generators.properties");
+    assertNotNull(entry);
+
     entry = bundle.getEntry("com.streamsets.datacollector.bundles.content.SimpleGenerator/file.txt");
     assertNotNull(entry);
   }
 
-  private ZipFile zipFile(List<String> bundles) throws Exception {
-    InputStream bundleStream = manager.generateNewBundle(bundles).getInputStream();
+  @Test
+  public void testSimpleStatsBundleCreation() throws Exception {
+    ZipFile bundle = zipFile(ImmutableList.of(SimpleGenerator.class.getSimpleName()), BundleType.STATS);
+    ZipEntry entry;
+
+    // Make sure that some files are actually missing
+    entry = bundle.getEntry("metadata.properties");
+    assertNull(entry);
+
+    // Check we have expected files
+    entry = bundle.getEntry("generators.properties");
+    assertNotNull(entry);
+
+    entry = bundle.getEntry("failed_generators.properties");
+    assertNotNull(entry);
+
+    entry = bundle.getEntry("com.streamsets.datacollector.bundles.content.SimpleGenerator/file.txt");
+    assertNotNull(entry);
+  }
+
+  private ZipFile zipFile(List<String> bundles, BundleType bundleType) throws Exception {
+    InputStream bundleStream = manager.generateNewBundle(bundles, bundleType).getInputStream();
     File outputFile = File.createTempFile("test-support-bundle", ".zip");
     outputFile.deleteOnExit();
 

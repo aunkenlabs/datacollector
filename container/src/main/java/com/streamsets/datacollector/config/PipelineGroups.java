@@ -23,6 +23,7 @@ public enum PipelineGroups implements Label {
   BAD_RECORDS("Error Records"),
   CLUSTER("Cluster"),
   STATS("Statistics"),
+  EMR("EMR"),
   ;
 
   private final String label;

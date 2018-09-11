@@ -266,6 +266,14 @@
       <directory>${basedir}/../${cdh_5_14-lib}/target/streamsets-libs/</directory>
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
+    <fileSet>
+      <directory>${basedir}/../${cdh_5_15-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+    <fileSet>
+      <directory>${basedir}/../${cdh_6_0-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
 
     <!-- CDH Spark Kafka lib -->
     <fileSet>
@@ -388,6 +396,10 @@
       <directory>${basedir}/../aws-lib/target/streamsets-libs/</directory>
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
+    <fileSet>
+      <directory>${basedir}/../kinesis-lib/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
 
     <!-- Azure libs -->
     <fileSet>
@@ -435,6 +447,12 @@
 
     <fileSet>
       <directory>${basedir}/../${mapr_spark_2_1_mep_3_0-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+
+    <!-- CouchBase libs -->
+     <fileSet>
+      <directory>${basedir}/../${couchbase_5-lib}/target/streamsets-libs/</directory>
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
 
@@ -516,6 +534,19 @@
     <!-- cyberark-credentialstore-lib -->
     <fileSet>
       <directory>${basedir}/../cyberark-credentialstore-lib/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+
+    <!-- wholefile-transformer-lib -->
+    <fileSet>
+      <directory>${basedir}/../wholefile-transformer-lib/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+
+    <!-- EMR libs -->
+
+    <fileSet>
+      <directory>${basedir}/../${emr_hadoop_2_8_3-lib}/target/streamsets-libs/</directory>
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
 

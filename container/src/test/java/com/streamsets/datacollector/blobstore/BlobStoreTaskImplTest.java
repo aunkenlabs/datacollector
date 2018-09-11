@@ -31,9 +31,11 @@ import static org.powermock.api.mockito.PowerMockito.when;
 
 public class BlobStoreTaskImplTest {
 
-  private static RuntimeInfo createRuntimeInfo() throws Exception{
+  private static RuntimeInfo createRuntimeInfo() throws Exception {
+   String dataDirectory = Files.createTempDirectory("blob-store-test").toString();
+
     RuntimeInfo runtimeInfo = mock(RuntimeInfo.class);
-    when(runtimeInfo.getDataDir()).thenReturn(Files.createTempDirectory("blob-store-test").toString());
+    when(runtimeInfo.getDataDir()).thenReturn(dataDirectory);
 
     return runtimeInfo;
   }
@@ -111,7 +113,7 @@ public class BlobStoreTaskImplTest {
     store.store("policy", "1234", 4, "");
 
     assertEquals(15, store.latestVersion("policy", "1234"));
-    assertEquals(ImmutableSet.of(10, 15, 4), store.allVersions("policy", "1234"));
+    assertEquals(ImmutableSet.of(10L, 15L, 4L), store.allVersions("policy", "1234"));
   }
 
   @Test
@@ -137,16 +139,16 @@ public class BlobStoreTaskImplTest {
 
     store.delete("policy", "1234", 10);
     assertEquals(15, store.latestVersion("policy", "1234"));
-    assertEquals(ImmutableSet.of(15, 4), store.allVersions("policy", "1234"));
+    assertEquals(ImmutableSet.of(15L, 4L), store.allVersions("policy", "1234"));
 
     store.delete("policy", "1234", 15);
     assertEquals(4, store.latestVersion("policy", "1234"));
-    assertEquals(ImmutableSet.of(4), store.allVersions("policy", "1234"));
+    assertEquals(ImmutableSet.of(4L), store.allVersions("policy", "1234"));
 
     store.delete("policy", "1234", 4);
     assertEquals(Collections.emptySet(), store.allVersions("policy", "1234"));
 
-    assertTrue(store.exists("policy", "1234"));
+    assertFalse(store.exists("policy", "1234"));
   }
 
   @Test
@@ -161,6 +163,42 @@ public class BlobStoreTaskImplTest {
     store.deleteAllVersions("policy", "1234");
 
     assertEquals(Collections.emptySet(), store.allVersions("policy", "1234"));
-    assertTrue(store.exists("policy", "1234"));
+    assertFalse(store.exists("policy", "1234"));
+  }
+
+  @Test(expected = RuntimeException.class)
+  public void testMetadataFileMissing() throws Exception {
+    RuntimeInfo runtimeInfo = createRuntimeInfo();
+
+    // Create a dummy content
+    BlobStoreTaskImpl store = new BlobStoreTaskImpl(runtimeInfo);
+    store.init();
+    store.store("policy", "1234", 10, "");
+
+    // Drop main metadata file (e.g. the work directory is non-empty and is missing metadata file(s)
+    Files.delete(store.metadataFile);
+    store = new BlobStoreTaskImpl(runtimeInfo);
+    store.initTask();
+  }
+
+  @Test
+  public void testRecoverMetadataFile() throws Exception {
+    RuntimeInfo runtimeInfo = createRuntimeInfo();
+
+    // Create a dummy content
+    BlobStoreTaskImpl store = new BlobStoreTaskImpl(runtimeInfo);
+    store.init();
+    store.store("policy", "1234", 10, "");
+
+    // Model issue with missing primary file and existing secondary
+    Files.move(store.metadataFile, store.newMetadataFile);
+
+    store = new BlobStoreTaskImpl(runtimeInfo);
+    store.initTask();
+
+    // The store should be able to recover and see the data
+    assertTrue(Files.exists(store.metadataFile));
+    assertFalse(Files.exists(store.newMetadataFile));
+    assertTrue(store.exists("policy", "1234", 10));
   }
 }

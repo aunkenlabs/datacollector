@@ -15,14 +15,18 @@
  */
 package com.streamsets.datacollector.creation;
 
+import com.streamsets.datacollector.config.AmazonEMRConfig;
+import com.streamsets.datacollector.config.LogLevel;
 import com.streamsets.pipeline.api.Config;
 import com.streamsets.pipeline.api.ExecutionMode;
 import com.streamsets.pipeline.api.StageException;
+import com.streamsets.testing.pipeline.stage.TestUpgraderContext;
 import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public class TestPipelineConfigUpgrader {
@@ -30,9 +34,9 @@ public class TestPipelineConfigUpgrader {
   @Test
   public void testPipelineConfigUpgrader() throws StageException {
     PipelineConfigUpgrader pipelineConfigUpgrader = new PipelineConfigUpgrader();
+    TestUpgraderContext context = new TestUpgraderContext("x", "y", "z", 1, 3);
 
-    List<Config> upgrade = pipelineConfigUpgrader.upgrade("x", "y", "z", 1, 3, new ArrayList<>());
-    Assert.assertEquals(9, upgrade.size());
+    List<Config> upgrade = pipelineConfigUpgrader.upgrade(new ArrayList<>(), context);
     Assert.assertEquals("executionMode", upgrade.get(0).getName());
     Assert.assertEquals(ExecutionMode.STANDALONE, upgrade.get(0).getValue());
 
@@ -57,7 +61,8 @@ public class TestPipelineConfigUpgrader {
     configs.add(new Config("executionMode", ExecutionMode.CLUSTER_YARN_STREAMING));
     configs.add(new Config("statsAggregatorStage", PipelineConfigBean.STATS_DPM_DIRECTLY_TARGET));
 
-    List<Config> upgraded = pipelineConfigUpgrader.upgrade("x", "y", "z", 7, 8, configs);
+    TestUpgraderContext context = new TestUpgraderContext("x", "y", "z", 7, 8);
+    List<Config> upgraded = pipelineConfigUpgrader.upgrade(configs, context);
 
     List<Config> statsAggregatorConfigList = upgraded.stream().filter(config -> config.getName().equals("statsAggregatorStage")).collect(
         Collectors.toList());
@@ -71,7 +76,7 @@ public class TestPipelineConfigUpgrader {
     configs.add(new Config("executionMode", ExecutionMode.CLUSTER_YARN_STREAMING));
     configs.add(new Config("statsAggregatorStage", STATS_SDC_RPC));
 
-    upgraded = pipelineConfigUpgrader.upgrade("x", "y", "z", 7, 8, configs);
+    upgraded = pipelineConfigUpgrader.upgrade(configs, context);
 
     statsAggregatorConfigList = upgraded.stream().filter(config -> config.getName().equals("statsAggregatorStage")).collect(
         Collectors.toList());
@@ -84,12 +89,8 @@ public class TestPipelineConfigUpgrader {
   public void testPipelineConfigUpgradeV8ToV9() throws StageException {
     PipelineConfigUpgrader pipelineConfigUpgrader = new PipelineConfigUpgrader();
 
-    //check Write to dpm straightly correctly upgraded
-    List<Config> configs = new ArrayList<>();
-    configs.add(new Config("executionMode", ExecutionMode.CLUSTER_YARN_STREAMING));
-    configs.add(new Config("statsAggregatorStage", PipelineConfigBean.STATS_DPM_DIRECTLY_TARGET));
-
-    List<Config> upgraded = pipelineConfigUpgrader.upgrade("x", "y", "z", 8, 9, configs);
+    TestUpgraderContext context = new TestUpgraderContext("x", "y", "z", 8, 9);
+    List<Config> upgraded = pipelineConfigUpgrader.upgrade(new ArrayList<>(), context);
 
     List<Config> edgeHttpUrlConfigList = upgraded.stream()
         .filter(config -> config.getName().equals("edgeHttpUrl"))
@@ -98,4 +99,53 @@ public class TestPipelineConfigUpgrader {
     Assert.assertEquals(1, edgeHttpUrlConfigList.size());
     Assert.assertEquals(PipelineConfigBean.EDGE_HTTP_URL_DEFAULT, edgeHttpUrlConfigList.get(0).getValue());
   }
+
+  @Test
+  public void testPipelineConfigUpgradeV9ToV10() throws StageException {
+    PipelineConfigUpgrader pipelineConfigUpgrader = new PipelineConfigUpgrader();
+    TestUpgraderContext context = new TestUpgraderContext("x", "y", "z", 9, 10);
+    List<Config> upgraded = pipelineConfigUpgrader.upgrade(new ArrayList<>(), context);
+
+    List<Config> testOriginStageConfigList = upgraded.stream()
+        .filter(config -> config.getName().equals("testOriginStage"))
+        .collect(Collectors.toList());
+
+    Assert.assertEquals(1, testOriginStageConfigList.size());
+    Assert.assertEquals(PipelineConfigBean.RAW_DATA_ORIGIN, testOriginStageConfigList.get(0).getValue());
+
+    List<Config> logLevelConfigList = upgraded.stream().filter(config -> config.getName().equals("logLevel")).collect(
+        Collectors.toList());
+
+    Assert.assertEquals(1, logLevelConfigList.size());
+    Assert.assertEquals(LogLevel.INFO.getLabel(), logLevelConfigList.get(0).getValue());
+
+    List<String> emrConfigList = upgraded.stream()
+        .map(conf -> conf.getName().replaceAll("amazonEMRConfig.",""))
+        .collect(Collectors.toList());
+
+    Assert.assertTrue(emrConfigList.contains(AmazonEMRConfig.ACCESS_KEY));
+    Assert.assertTrue(emrConfigList.contains(AmazonEMRConfig.SECRET_KEY));
+    Assert.assertTrue(emrConfigList.contains(AmazonEMRConfig.CLUSTER_ID));
+    Assert.assertTrue(emrConfigList.contains(AmazonEMRConfig.CLUSTER_PREFIX));
+    Assert.assertTrue(emrConfigList.contains(AmazonEMRConfig.EC2_SUBNET_ID));
+    Assert.assertTrue(emrConfigList.contains(AmazonEMRConfig.ENABLE_EMR_DEBUGGING));
+    Assert.assertTrue(emrConfigList.contains(AmazonEMRConfig.INSTANCE_COUNT));
+    Assert.assertTrue(emrConfigList.contains(AmazonEMRConfig.JOB_FLOW_ROLE));
+    Assert.assertTrue(emrConfigList.contains(AmazonEMRConfig.MASTER_INSTANCE_TYPE));
+    Assert.assertTrue(emrConfigList.contains(AmazonEMRConfig.MASTER_SECURITY_GROUP));
+    Assert.assertTrue(emrConfigList.contains(AmazonEMRConfig.MASTER_INSTANCE_TYPE_CUSTOM));
+    Assert.assertTrue(emrConfigList.contains(AmazonEMRConfig.SLAVE_INSTANCE_TYPE));
+    Assert.assertTrue(emrConfigList.contains(AmazonEMRConfig.SLAVE_SECURITY_GROUP));
+    Assert.assertTrue(emrConfigList.contains(AmazonEMRConfig.SLAVE_INSTANCE_TYPE_CUSTOM));
+    Assert.assertTrue(emrConfigList.contains(AmazonEMRConfig.PROVISION_NEW_CLUSTER));
+    Assert.assertTrue(emrConfigList.contains(AmazonEMRConfig.S3_LOG_URI));
+    Assert.assertTrue(emrConfigList.contains(AmazonEMRConfig.S3_STAGING_URI));
+    Assert.assertTrue(emrConfigList.contains(AmazonEMRConfig.SERVICE_ROLE));
+    Assert.assertTrue(emrConfigList.contains(AmazonEMRConfig.USER_REGION));
+    Assert.assertTrue(emrConfigList.contains(AmazonEMRConfig.USER_REGION_CUSTOM));
+    Assert.assertTrue(emrConfigList.contains(AmazonEMRConfig.TERMINATE_CLUSTER));
+    Assert.assertTrue(emrConfigList.contains(AmazonEMRConfig.VISIBLE_TO_ALL_USERS));
+    Assert.assertTrue(emrConfigList.contains(AmazonEMRConfig.LOGGING_ENABLED));
+  }
+
 }

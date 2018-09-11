@@ -27,15 +27,15 @@ import com.streamsets.pipeline.api.base.configurablestage.DClusterSourceOffsetCo
 import com.streamsets.pipeline.api.impl.ClusterSource;
 
 @StageDef(
-  version = 5,
+  version = 6,
   label = "Hadoop FS",
   description = "Reads data from Hadoop file system",
-  execution = ExecutionMode.CLUSTER_BATCH,
+  execution = {ExecutionMode.CLUSTER_BATCH , ExecutionMode.EMR_BATCH },
   libJarsRegex = {"avro-\\d+.*", "avro-mapred.*"},
   icon = "hdfs.png",
   privateClassLoader = true,
   upgrader = ClusterHdfsSourceUpgrader.class,
-  onlineHelpRefUrl ="index.html#datacollector/UserGuide/Origins/HadoopFS-origin.html#task_hgl_vgn_vs"
+  onlineHelpRefUrl ="index.html?contextID=task_hgl_vgn_vs"
 )
 @ConfigGroups(value = Groups.class)
 @HideConfigs(value = {"clusterHDFSConfigBean.dataFormatConfig.compression", "clusterHDFSConfigBean.dataFormatConfig.includeCustomDelimiterInTheText"})

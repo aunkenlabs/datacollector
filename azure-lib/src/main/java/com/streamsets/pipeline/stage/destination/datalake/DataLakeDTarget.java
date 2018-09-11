@@ -28,13 +28,13 @@ import com.streamsets.pipeline.api.base.configurablestage.DTarget;
     description = "Writes data to Azure Data Lake Store",
     icon = "data-lake-store.png",
     producesEvents = true,
-    onlineHelpRefUrl ="index.html#datacollector/UserGuide/Destinations/DataLakeStore.html#task_jfl_nf4_zx"
+    onlineHelpRefUrl ="index.html?contextID=task_jfl_nf4_zx"
 )
 
 @ConfigGroups(value = Groups.class)
 @GenerateResourceBundle
 public class DataLakeDTarget extends DTarget {
-  @ConfigDefBean(groups = {"DATALAKE"})
+  @ConfigDefBean(groups = {"DATALAKE", "DATA_FORMAT"})
   public DataLakeConfigBean dataLakeConfig;
 
   @Override

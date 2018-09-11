@@ -15,8 +15,11 @@
  */
 package com.streamsets.datacollector.execution;
 
+import com.google.common.base.Preconditions;
 import com.streamsets.datacollector.callback.CallbackInfo;
 import com.streamsets.datacollector.callback.CallbackObjectType;
+import com.streamsets.datacollector.config.PipelineConfiguration;
+import com.streamsets.datacollector.event.dto.PipelineStartEvent;
 import com.streamsets.datacollector.execution.alerts.AlertInfo;
 import com.streamsets.datacollector.execution.runner.common.PipelineRunnerException;
 import com.streamsets.datacollector.execution.runner.common.SampledRecord;
@@ -47,6 +50,30 @@ public interface Runner {
   //All impls must register all PipelineListeners (the above instance may or may not implement this interface)
   //    and dispatch pipeline start/stop calls to them.
 
+  /**
+   * Context with everything that the framework need in order to start a pipeline.
+   */
+  public static interface StartPipelineContext {
+    /**
+     * User that is attempting to start a pipeline.
+     */
+    public String getUser();
+
+    /**
+     * Optional runtime parameters.
+     *
+     * Returns null if the parameters are not specified at all.
+     */
+    public Map<String, Object> getRuntimeParameters();
+
+    /**
+     * Optional interceptor configuration.
+     *
+     * Returns empty list if the interceptors and not specified at all.
+     */
+    public List<PipelineStartEvent.InterceptorConfiguration> getInterceptorConfigurations();
+  }
+
   //each Runner has its own status transition rules
 
   // pipeline name
@@ -57,6 +84,8 @@ public interface Runner {
 
   // pipeline title
   public String getPipelineTitle() throws PipelineException;
+
+  PipelineConfiguration getPipelineConfiguration() throws PipelineException;
 
   // resets the pipeline offset, only if the pipeline is not running
   // it must assert the current status
@@ -88,21 +117,17 @@ public interface Runner {
   public void forceQuit(String user) throws PipelineException;
 
   // Sets the state to STARTING. Should be called before doing a start on async runners.
-  public void prepareForStart(String user, Map<String, Object> attributes) throws PipelineException;
+  public void prepareForStart(StartPipelineContext context) throws PipelineException;
 
   // Sets the state to STOPPING. Should be called before doing a stop on async runners.
   public void prepareForStop(String user) throws PipelineException;
 
-  // starts the pipeline
-  public void start(String user) throws PipelineException, StageException;
-
-  // starts the pipeline with parameterization support
-  public void start(String user, Map<String, Object> runtimeParameters) throws PipelineException, StageException;
+  // Start pipeline
+  public void start(StartPipelineContext context) throws PipelineException, StageException;
 
   // starts the pipeline and then triggers a snapshot request
   public void startAndCaptureSnapshot(
-      String user,
-      Map<String, Object> runtimeParameters,
+      StartPipelineContext context,
       String snapshotName,
       String snapshotLabel,
       int batches,
@@ -155,6 +180,11 @@ public interface Runner {
 
   Collection<CallbackInfo> getSlaveCallbackList(CallbackObjectType callbackObjectType);
 
+  /**
+   * Create attributes to be saved in the state file.
+   */
+  public Map<String, Object> createStateAttributes() throws PipelineStoreException;
+
   void close();
 
   void updateSlaveCallbackInfo(CallbackInfo callbackInfo);
@@ -164,5 +194,22 @@ public interface Runner {
   String getToken();
 
   int getRunnerCount();
+
+  // returns the Runner this instance delegates the work to, or NULL if there is no delegation
+  Runner getDelegatingRunner();
+
+  // returns a runner from the runner delegation chain of the specified class, or NULL if there is no such
+  // implementation. If the current runner is an instance of the class it returns the current runner.
+  default <R extends Runner> R getRunner(Class<R> klass) {
+    Preconditions.checkNotNull(klass, "klass cannot be NULL");
+    Runner delegationRunner = this;
+    while (delegationRunner != null) {
+      if (klass.isInstance(delegationRunner)) {
+        return (R) delegationRunner;
+      }
+      delegationRunner = delegationRunner.getDelegatingRunner();
+    }
+    return null;
+  }
 
 }

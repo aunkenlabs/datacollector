@@ -19,7 +19,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.streamsets</groupId>
   <artifactId>streamsets-datacollector</artifactId>
-  <version>3.4.0-SNAPSHOT</version>
+  <version>3.4.2</version>
   <description>StreamSets Data Collector</description>
   <name>StreamSets Data Collector</name>
   <packaging>pom</packaging>
@@ -74,6 +74,7 @@
     <jks-credentialstore-lib>jks-credentialstore-lib</jks-credentialstore-lib>
     <jdbc-lib>jdbc-lib</jdbc-lib>
     <jms-lib>jms-lib</jms-lib>
+    <kinesis-lib>kinesis-lib</kinesis-lib>
     <mysql-binlog-lib>mysql-binlog-lib</mysql-binlog-lib>
     <omniture-lib>omniture-lib</omniture-lib>
     <rabbitmq-lib>rabbitmq-lib</rabbitmq-lib>
@@ -81,8 +82,11 @@
     <salesforce-lib>salesforce-lib</salesforce-lib>
     <stats-lib>stats-lib</stats-lib>
     <vault-credentialstore-lib>vault-credentialstore-lib</vault-credentialstore-lib>
+    <wholefile-transformer-lib>wholefile-transformer-lib</wholefile-transformer-lib>
     <windows-lib>windows-lib</windows-lib>
     <rootProject>true</rootProject>
+    <datacollector-api.version>3.4.2</datacollector-api.version>
+    <datacollector-spark-api.version>3.4.2</datacollector-spark-api.version>
   </properties>
 
   <!-- StreamSets Data Collector API being used -->
@@ -91,12 +95,12 @@
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-api</artifactId>
-        <version>3.4.0-SNAPSHOT</version>
+        <version>${datacollector-api.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-spark-api</artifactId>
-        <version>3.4.0-SNAPSHOT</version>
+        <version>${datacollector-spark-api.version}</version>
       </dependency>
       <dependency>
         <groupId>javax.servlet</groupId>
@@ -155,6 +159,7 @@
     <module>sdc-kafka_0_9-common</module>
     <module>sdc-kafka_0_9</module>
     <module>sdc-kafka_0_9_mapr_5_1</module>
+    <module>sdc-kafka_0_9_mapr_5_2</module>
     <module>sdc-kafka_0_10</module>
     <module>sdc-kafka_0_11</module>
     <module>sdc-kafka_1_0</module>
@@ -171,6 +176,7 @@
     <module>jython-protolib</module>
     <module>groovy-protolib</module>
     <module>kinetica-protolib</module>
+    <module>couchbase-protolib</module>
 
     <module>elasticsearch-protolib</module>
 
@@ -200,6 +206,8 @@
     <module>spark-executor-protolib</module>
     <module>spark-processor-protolib</module>
     <module>scripting-protolib</module>
+    <module>wholefile-converter-protolib</module>
+    <module>emr-protolib</module>
 
     <!--
          Stage libraries that always built with the data collector (they dont have protolibs)
@@ -222,6 +230,7 @@
     <module>jks-credentialstore-lib</module>
     <module>jdbc-lib</module>
     <module>jms-lib</module>
+    <module>kinesis-lib</module>
     <module>mysql-binlog-lib</module>
     <module>omniture-lib</module>
     <module>rabbitmq-lib</module>
@@ -229,6 +238,7 @@
     <module>salesforce-lib</module>
     <module>stats-lib</module>
     <module>vault-credentialstore-lib</module>
+    <module>wholefile-transformer-lib</module>
     <module>windows-lib</module>
   </modules>
 
@@ -449,19 +459,27 @@
         <cdh_5_3-lib>cdh_5_3-lib</cdh_5_3-lib>
         <cdh_5_4-lib>cdh_5_4-lib</cdh_5_4-lib>
         <cdh_5_5-lib>cdh_5_5-lib</cdh_5_5-lib>
-        <cdh-spark_2_1-lib>cdh-spark_2_1-lib</cdh-spark_2_1-lib>
-        <cdh-spark_2_2-lib>cdh-spark_2_2-lib</cdh-spark_2_2-lib>
-        <cdh-spark_2_3-lib>cdh-spark_2_3-lib</cdh-spark_2_3-lib>
+        <cdh_5_7-lib>cdh_5_7-lib</cdh_5_7-lib>
+        <cdh_5_8-lib>cdh_5_8-lib</cdh_5_8-lib>
+        <cdh_5_9-lib>cdh_5_9-lib</cdh_5_9-lib>
+        <cdh_5_10-lib>cdh_5_10-lib</cdh_5_10-lib>
+        <cdh_5_11-lib>cdh_5_11-lib</cdh_5_11-lib>
         <cdh_5_12-lib>cdh_5_12-lib</cdh_5_12-lib>
         <cdh_5_13-lib>cdh_5_13-lib</cdh_5_13-lib>
         <cdh_5_14-lib>cdh_5_14-lib</cdh_5_14-lib>
+        <cdh_5_15-lib>cdh_5_15-lib</cdh_5_15-lib>
+        <cdh-spark_2_1-lib>cdh-spark_2_1-lib</cdh-spark_2_1-lib>
+        <cdh-spark_2_2-lib>cdh-spark_2_2-lib</cdh-spark_2_2-lib>
+        <cdh-spark_2_3-lib>cdh-spark_2_3-lib</cdh-spark_2_3-lib>
         <cdh_kafka_1_2-lib>cdh_kafka_1_2-lib</cdh_kafka_1_2-lib>
         <cdh_kafka_1_3-lib>cdh_kafka_1_3-lib</cdh_kafka_1_3-lib>
         <cdh_kafka_2_0-lib>cdh_kafka_2_0-lib</cdh_kafka_2_0-lib>
         <cdh_kafka_2_1-lib>cdh_kafka_2_1-lib</cdh_kafka_2_1-lib>
         <cdh_kafka_3_0-lib>cdh_kafka_3_0-lib</cdh_kafka_3_0-lib>
+        <couchbase_5-lib>couchbase_5-lib</couchbase_5-lib>
         <cdh_spark_2_1_r1-lib>cdh_spark_2_1_r1-lib</cdh_spark_2_1_r1-lib>
         <elasticsearch_5-lib>elasticsearch_5-lib</elasticsearch_5-lib>
+        <emr_hadoop_2_8_3-lib>emr_hadoop_2_8_3-lib</emr_hadoop_2_8_3-lib>
         <groovy_2_4-lib>groovy_2_4-lib</groovy_2_4-lib>
         <kinetica_6_0-lib>kinetica_6_0-lib</kinetica_6_0-lib>
         <kinetica_6_1-lib>kinetica_6_1-lib</kinetica_6_1-lib>
@@ -520,6 +538,8 @@
         <module>cdh_5_12-lib</module>
         <module>cdh_5_13-lib</module>
         <module>cdh_5_14-lib</module>
+        <module>cdh_5_15-lib</module>
+        <module>cdh_6_0-lib</module>
         <module>cdh_kafka_1_2-lib</module>
         <module>cdh_kafka_1_3-lib</module>
         <module>cdh_kafka_2_0-lib</module>
@@ -529,7 +549,9 @@
         <module>cdh-spark_2_1-lib</module>
         <module>cdh-spark_2_2-lib</module>
         <module>cdh-spark_2_3-lib</module>
+        <module>couchbase_5-lib</module>
         <module>elasticsearch_5-lib</module>
+        <module>emr_hadoop_2_8_3-lib</module>
         <module>groovy_2_4-lib</module>
         <module>kinetica_6_0-lib</module>
         <module>kinetica_6_1-lib</module>
@@ -576,11 +598,14 @@
         <apache-kudu_1_7-lib>apache-kudu_1_7-lib</apache-kudu_1_7-lib>
         <apache-solr_6_1_0-lib>apache-solr_6_1_0-lib</apache-solr_6_1_0-lib>
         <cassandra_3-lib>cassandra_3-lib</cassandra_3-lib>
-        <cdh-spark_2_3-lib>cdh-spark_2_3-lib</cdh-spark_2_3-lib>
-        <cdh_5_14-lib>cdh_5_14-lib</cdh_5_14-lib>
+        <cdh-spark_2_1-lib>cdh-spark_2_1-lib</cdh-spark_2_1-lib>
+        <cdh_5_15-lib>cdh_5_15-lib</cdh_5_15-lib>
+        <cdh_6_0-lib>cdh_6_0-lib</cdh_6_0-lib>
         <cdh_kafka_3_0-lib>cdh_kafka_3_0-lib</cdh_kafka_3_0-lib>
         <cdh_spark_2_1_r1-lib>cdh_spark_2_1_r1-lib</cdh_spark_2_1_r1-lib>
+        <couchbase_5-lib>couchbase_5-lib</couchbase_5-lib>
         <elasticsearch_5-lib>elasticsearch_5-lib</elasticsearch_5-lib>
+        <emr_hadoop_2_8_3-lib>emr_hadoop_2_8_3-lib</emr_hadoop_2_8_3-lib>
         <groovy_2_4-lib>groovy_2_4-lib</groovy_2_4-lib>
         <kinetica_6_1-lib>kinetica_6_1-lib</kinetica_6_1-lib>
         <hdp_2_6-lib>hdp_2_6-lib</hdp_2_6-lib>
@@ -606,11 +631,14 @@
         <module>apache-kudu_1_7-lib</module>
         <module>apache-solr_6_1_0-lib</module>
         <module>cassandra_3-lib</module>
-        <module>cdh-spark_2_3-lib</module>
-        <module>cdh_5_14-lib</module>
+        <module>cdh-spark_2_1-lib</module>
+        <module>cdh_5_15-lib</module>
+        <module>cdh_6_0-lib</module>
         <module>cdh_kafka_3_0-lib</module>
         <module>cdh_spark_2_1_r1-lib</module>
+        <module>couchbase_5-lib</module>
         <module>elasticsearch_5-lib</module>
+        <module>emr_hadoop_2_8_3-lib</module>
         <module>groovy_2_4-lib</module>
         <module>kinetica_6_1-lib</module>
         <module>hdp_2_6-lib</module>
@@ -786,6 +814,17 @@
       </build>
     </profile>
   </profiles>
+
+  <pluginRepositories>
+    <pluginRepository>
+      <id>cdh.plugin.repo</id>
+      <url>https://repository.cloudera.com/content/groups/cloudera-repos</url>
+      <name>Cloudera Repositories</name>
+      <snapshots>
+        <enabled>false</enabled>
+      </snapshots>
+    </pluginRepository>
+  </pluginRepositories>
 
   <repositories>
     <repository>

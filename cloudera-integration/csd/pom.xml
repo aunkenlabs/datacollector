@@ -22,12 +22,12 @@
   <parent>
     <groupId>com.streamsets</groupId>
     <artifactId>streamsets-cloudera-integration</artifactId>
-    <version>3.4.0-SNAPSHOT</version>
+    <version>3.4.2</version>
   </parent>
 
   <groupId>com.streamsets</groupId>
   <artifactId>streamsets-csd</artifactId>
-  <version>3.4.0-SNAPSHOT</version>
+  <version>3.4.2</version>
   <name>The StreamSets CSD for Cloudera Manager</name>
   <packaging>pom</packaging>
 
@@ -35,17 +35,6 @@
     <timestamp>${maven.build.timestamp}</timestamp>
     <maven.build.timestamp.format>yyyy-MM-dd HH:mm:ss</maven.build.timestamp.format>
   </properties>
-
-  <pluginRepositories>
-    <pluginRepository>
-      <id>cdh.repo</id>
-      <url>https://repository.cloudera.com/content/groups/cloudera-repos</url>
-      <name>Cloudera Repositories</name>
-      <snapshots>
-        <enabled>false</enabled>
-      </snapshots>
-    </pluginRepository>
-  </pluginRepositories>
 
   <dependencies>
     <dependency>
@@ -80,7 +69,7 @@
       <plugin>
         <groupId>com.cloudera.enterprise</groupId>
         <artifactId>schema-validator-maven-plugin</artifactId>
-        <version>5.12.0</version>
+        <version>5.15.0</version>
         <executions>
           <execution>
             <id>validate-schema</id>

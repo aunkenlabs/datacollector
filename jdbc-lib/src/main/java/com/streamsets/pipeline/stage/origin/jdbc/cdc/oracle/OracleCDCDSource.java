@@ -25,14 +25,14 @@ import com.streamsets.pipeline.api.base.configurablestage.DSource;
 import com.streamsets.pipeline.lib.jdbc.HikariPoolConfigBean;
 
 @StageDef(
-    version = 8,
+    version = 9,
     label = "Oracle CDC Client",
     description = "Origin that an read change events from an Oracle Database",
     icon = "rdbms.png",
     recordsByRef = true,
     producesEvents = true,
     resetOffset = true,
-    onlineHelpRefUrl ="index.html#datacollector/UserGuide/Origins/OracleCDC.html#task_ehh_mjj_tw",
+    onlineHelpRefUrl ="index.html?contextID=task_ehh_mjj_tw",
     upgrader = OracleCDCSourceUpgrader.class
 )
 @GenerateResourceBundle

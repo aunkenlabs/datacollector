@@ -22,20 +22,28 @@ import com.streamsets.pipeline.api.HideConfigs;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.Target;
 import com.streamsets.pipeline.api.base.configurablestage.DTarget;
+import com.streamsets.pipeline.api.service.ServiceConfiguration;
+import com.streamsets.pipeline.api.service.ServiceDependency;
+import com.streamsets.pipeline.api.service.dataformats.DataFormatGeneratorService;
 
 @StageDef(
-  version = 10,
+  version = 11,
   label = "Amazon S3",
   description = "Writes to Amazon S3",
   icon = "s3.png",
   privateClassLoader = true,
   upgrader = AmazonS3TargetUpgrader.class,
   producesEvents = true,
-  onlineHelpRefUrl ="index.html#datacollector/UserGuide/Destinations/AmazonS3.html#task_pxb_j3r_rt"
+  onlineHelpRefUrl ="index.html?contextID=task_pxb_j3r_rt",
+  services = @ServiceDependency(
+    service = DataFormatGeneratorService.class,
+    configuration = {
+      @ServiceConfiguration(name = "displayFormats", value = "AVRO,BINARY,DELIMITED,JSON,PROTOBUF,SDC_JSON,TEXT,WHOLE_FILE")
+    }
+  )
 )
 @ConfigGroups(Groups.class)
 @GenerateResourceBundle
-@HideConfigs(value = {"s3TargetConfigBean.dataGeneratorFormatConfig.includeSchema"})
 public class AmazonS3DTarget extends DTarget {
 
   @ConfigDefBean()

@@ -32,8 +32,10 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.SortedMap;
 
 import static com.streamsets.pipeline.lib.jdbc.JdbcErrors.JDBC_14;
@@ -134,6 +136,8 @@ public class JdbcGenericRecordWriter extends JdbcBaseRecordWriter {
     Connection connection = null;
     PreparedStatementMap statementsForBatch = null;
     List<PreparedStatement> statementsToExecute = new ArrayList<>();
+    // Map that keeps list of records that has been used for each statement -- for error handling
+    Map<PreparedStatement, List<Record>> statementsToRecords  = new HashMap<>();
     try {
       connection = getDataSource().getConnection();
 
@@ -159,9 +163,19 @@ public class JdbcGenericRecordWriter extends JdbcBaseRecordWriter {
             getColumnsToParameters(),
             opCode == OperationType.UPDATE_CODE ? getColumnsToFieldNoPK() : getColumnsToFields()
         );
+
+        if (columnsToParameters.isEmpty()) {
+          // no parameters found for configured columns
+          if (LOG.isWarnEnabled()) {
+            LOG.warn("No parameters found for record with ID {}; skipping", record.getHeader().getSourceId());
+          }
+          continue;
+        }
+
         PreparedStatement statement;
         try {
           statement = statementsForBatch.getPreparedStatement(opCode, columnsToParameters);
+          statementsToRecords.computeIfAbsent(statement, (key) -> new ArrayList<>()).add(record);
 
           setParameters(opCode, columnsToParameters, record, connection, statement);
 
@@ -197,7 +211,7 @@ public class JdbcGenericRecordWriter extends JdbcBaseRecordWriter {
             if (getRollbackOnError()) {
               connection.rollback();
             }
-            handleBatchUpdateException(batch, e, errorRecords);
+            handleBatchUpdateException(statementsToRecords.get(statement), e, errorRecords);
           }
 
           if (getGeneratedColumnMappings() != null) {

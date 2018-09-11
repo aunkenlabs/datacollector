@@ -143,15 +143,27 @@ public class TestRecordSampler {
           }
 
           @Override
+          public String getErrorJobId() {
+            return null;
+          }
+
+          @Override
           public Map<String, Object> getAllAttributes() {
             return null;
           }
 
           @Override
-          public Map<String, Object> setAllAttributes(Map<String, Object> newAttrs) {
+          public Map<String, Object> overrideUserAndSystemAttributes(Map<String, Object> newAttrs) {
             return null;
           }
+          @Override
+          public Map<String, Object> getUserAttributes() {return null;}
+
+          @Override
+          public Map<String, Object> setUserAttributes(Map<String, Object> newAttributes) {return null;}
+
         };
+
         @Override
         public Header getHeader() {
           return header;
@@ -189,6 +201,11 @@ public class TestRecordSampler {
 
         @Override
         public Set<String> getEscapedFieldPaths() {
+          return null;
+        }
+
+        @Override
+        public List<String> getEscapedFieldPathsOrdered() {
           return null;
         }
 

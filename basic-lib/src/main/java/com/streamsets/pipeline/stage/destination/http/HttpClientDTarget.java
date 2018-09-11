@@ -30,13 +30,15 @@ import com.streamsets.pipeline.lib.http.Groups;
     description = "Uses an HTTP client to write data.",
     icon = "httpclient.png",
     recordsByRef = true,
-    onlineHelpRefUrl ="index.html#datacollector/UserGuide/Destinations/HTTPClient.html#task_bdf_fk5_lz",
+    onlineHelpRefUrl ="index.html?contextID=task_bdf_fk5_lz",
     execution = {
         ExecutionMode.STANDALONE,
         ExecutionMode.CLUSTER_BATCH,
         ExecutionMode.CLUSTER_YARN_STREAMING,
         ExecutionMode.CLUSTER_MESOS_STREAMING,
-        ExecutionMode.EDGE
+        ExecutionMode.EDGE,
+        ExecutionMode.EMR_BATCH
+
     },
     upgrader = HttpClientTargetUpgrader.class
 )

@@ -50,6 +50,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+
 public class SpoolDirRunnable implements Runnable {
   public static final String SPOOL_DIR_METRICS = "Spool Directory Metrics for Thread - ";
   public static final String CURRENT_FILE = "Current File";
@@ -302,8 +303,7 @@ public class SpoolDirRunnable implements Runnable {
 
     // if this is the end of the file, do post processing
     if (currentFile != null && newOffset.getOffset().equals(MINUS_ONE)) {
-      WrappedFile offsetFile = fs.getFile(newOffset.getFile());
-      spooler.doPostProcessing(fs.getFile(spooler.getSpoolDir(), offsetFile.getFileName()));
+      spooler.doPostProcessing(fs.getFile(conf.spoolDir, newOffset.getFile()));
     }
 
     updateGauge(Status.BATCH_GENERATED, offset);
@@ -514,7 +514,7 @@ public class SpoolDirRunnable implements Runnable {
   }
 
   private void setHeaders(Record record, Map<String, Object> recordHeaderAttr) throws IOException {
-    record.getHeader().setAllAttributes(recordHeaderAttr);
+    recordHeaderAttr.forEach((k,v) -> record.getHeader().setAttribute(k, v.toString()));
   }
 
   private enum Status {

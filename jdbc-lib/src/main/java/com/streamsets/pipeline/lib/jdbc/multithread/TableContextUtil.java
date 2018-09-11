@@ -362,14 +362,20 @@ public final class TableContextUtil {
       QuoteChar quoteChar
   ) throws SQLException, StageException {
     Map<String, TableContext> tableContextMap = new LinkedHashMap<>();
-    Pattern p =
+    Pattern tableExclusion =
         StringUtils.isEmpty(tableConfigBean.tableExclusionPattern)?
             null : Pattern.compile(tableConfigBean.tableExclusionPattern);
+    Pattern schemaExclusion =
+        StringUtils.isEmpty(tableConfigBean.schemaExclusionPattern)?
+            null : Pattern.compile(tableConfigBean.schemaExclusionPattern);
     try (ResultSet rs = JdbcUtil.getTableMetadata(connection, null, tableConfigBean.schema, tableConfigBean.tablePattern, true)) {
       while (rs.next()) {
         String schemaName = rs.getString(TABLE_METADATA_TABLE_SCHEMA_CONSTANT);
         String tableName = rs.getString(TABLE_METADATA_TABLE_NAME_CONSTANT);
-        if (p == null || !p.matcher(tableName).matches()) {
+        if (
+            (tableExclusion == null || !tableExclusion.matcher(tableName).matches()) &&
+            (schemaExclusion == null || !schemaExclusion.matcher(schemaName).matches())
+        ) {
           TableContext tableContext = createTableContext(
               context,
               issues,
@@ -596,7 +602,7 @@ public final class TableContextUtil {
         if (p == null || !p.matcher(tableName).matches()) {
           // validate table is change tracking enabled
           try {
-            long min_valid_version = validateTable(connection, tableName);
+            long min_valid_version = validateTable(connection, schemaName, tableName);
             if (min_valid_version <= currentVersion) {
               tableContextMap.put(
                   getQualifiedTableName(schemaName, tableName),
@@ -671,8 +677,9 @@ public final class TableContextUtil {
     throw new StageException(JdbcErrors.JDBC_201, -1);
   }
 
-  private static long validateTable(Connection connection, String table) throws SQLException, StageException {
-    PreparedStatement validation = connection.prepareStatement(String.format(MSQueryUtil.getMinVersion(), table));
+  private static long validateTable(Connection connection, String schema, String table) throws SQLException, StageException {
+    String query = MSQueryUtil.getMinVersion(schema, table);
+    PreparedStatement validation = connection.prepareStatement(query);
     ResultSet resultSet = validation.executeQuery();
     if (resultSet.next()) {
       return resultSet.getLong("min_valid_version");
@@ -706,7 +713,6 @@ public final class TableContextUtil {
     if (tableConfigBean.initialOffset < 0) {
       initalSyncVersion = currentSyncVersion;
     }
-    offsetColumnToStartOffset.put(MSQueryUtil.SYS_CHANGE_VERSION, Long.toString(initalSyncVersion));
 
     final Map<String, String> offsetAdjustments = new HashMap<>();
     final Map<String, String> offsetColumnMinValues = new HashMap<>();
@@ -724,7 +730,8 @@ public final class TableContextUtil {
         TableConfigBean.ENABLE_NON_INCREMENTAL_DEFAULT_VALUE,
         partitioningMode,
         maxNumActivePartitions,
-        extraOffsetColumnConditions
+        extraOffsetColumnConditions,
+        initalSyncVersion
     );
   }
 

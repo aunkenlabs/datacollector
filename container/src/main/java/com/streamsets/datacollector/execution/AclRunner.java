@@ -17,6 +17,7 @@ package com.streamsets.datacollector.execution;
 
 import com.streamsets.datacollector.callback.CallbackInfo;
 import com.streamsets.datacollector.callback.CallbackObjectType;
+import com.streamsets.datacollector.config.PipelineConfiguration;
 import com.streamsets.datacollector.execution.alerts.AlertInfo;
 import com.streamsets.datacollector.execution.runner.common.PipelineRunnerException;
 import com.streamsets.datacollector.execution.runner.common.SampledRecord;
@@ -57,6 +58,11 @@ public class AclRunner implements Runner {
   @Override
   public String getPipelineTitle() throws PipelineException {
     return runner.getPipelineTitle();
+  }
+
+  @Override
+  public PipelineConfiguration getPipelineConfiguration() throws PipelineException {
+    return runner.getPipelineConfiguration();
   }
 
   @Override
@@ -110,8 +116,8 @@ public class AclRunner implements Runner {
   }
 
   @Override
-  public void prepareForStart(String user, Map<String, Object> attributes) throws PipelineException {
-    runner.prepareForStart(user, attributes);
+  public void prepareForStart(StartPipelineContext context) throws PipelineException {
+    runner.prepareForStart(context);
   }
 
   @Override
@@ -120,28 +126,21 @@ public class AclRunner implements Runner {
   }
 
   @Override
-  public void start(String user) throws PipelineException, StageException {
+  public void start(StartPipelineContext context) throws PipelineException, StageException {
     aclStore.validateExecutePermission(this.getName(), currentUser);
-    runner.start(user);
-  }
-
-  @Override
-  public void start(String user, Map<String, Object> runtimeParameters) throws PipelineException, StageException {
-    aclStore.validateExecutePermission(this.getName(), currentUser);
-    runner.start(user, runtimeParameters);
+    runner.start(context);
   }
 
   @Override
   public void startAndCaptureSnapshot(
-      String user,
-      Map<String, Object> runtimeParameters,
+      StartPipelineContext context,
       String snapshotName,
       String snapshotLabel,
       int batches,
       int batchSize
   ) throws PipelineException, StageException {
     aclStore.validateExecutePermission(this.getName(), currentUser);
-    runner.startAndCaptureSnapshot(user, runtimeParameters, snapshotName, snapshotLabel, batches, batchSize);
+    runner.startAndCaptureSnapshot(context, snapshotName, snapshotLabel, batches, batchSize);
   }
 
   @Override
@@ -232,6 +231,11 @@ public class AclRunner implements Runner {
   }
 
   @Override
+  public Map<String, Object> createStateAttributes() throws PipelineStoreException {
+    return runner.createStateAttributes();
+  }
+
+  @Override
   public void close() {
     runner.close();
   }
@@ -254,5 +258,10 @@ public class AclRunner implements Runner {
   @Override
   public int getRunnerCount() {
     return runner.getRunnerCount();
+  }
+
+  @Override
+  public Runner getDelegatingRunner() {
+    return runner;
   }
 }

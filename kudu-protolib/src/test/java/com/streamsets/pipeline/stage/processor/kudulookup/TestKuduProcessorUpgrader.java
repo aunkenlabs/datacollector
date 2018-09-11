@@ -36,4 +36,18 @@ public class TestKuduProcessorUpgrader {
     Assert.assertEquals("conf.missingLookupBehavior", addedConf1.getName());
     Assert.assertEquals(MissingValuesBehavior.SEND_TO_ERROR, addedConf1.getValue());
   }
+
+  @Test
+  public void testUpgradeV2toV3() throws StageException {
+    List<Config> configs = new ArrayList<>();
+    KuduProcessorUpgrader upgrader = new KuduProcessorUpgrader();
+    List<Config> upgradedConfigs = upgrader.upgrade("lib", "stage", "stageInst", 2, 3, configs);
+    Assert.assertEquals(2, upgradedConfigs.size());
+    Config addedConf1 = upgradedConfigs.get(0);
+    Assert.assertEquals("conf.adminOperationTimeout", addedConf1.getName());
+    Assert.assertEquals(30000, addedConf1.getValue());
+    Config addedConf2 = upgradedConfigs.get(1);
+    Assert.assertEquals("conf.numWorkers", addedConf2.getName());
+    Assert.assertEquals(0, addedConf2.getValue());
+  }
 }

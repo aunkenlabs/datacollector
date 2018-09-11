@@ -16,6 +16,7 @@
 package com.streamsets.datacollector.configupgrade;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.streamsets.datacollector.config.PipelineConfiguration;
 import com.streamsets.datacollector.config.ServiceConfiguration;
 import com.streamsets.datacollector.config.ServiceDefinition;
@@ -27,6 +28,7 @@ import com.streamsets.datacollector.creation.PipelineConfigUpgrader;
 import com.streamsets.datacollector.stagelibrary.StageLibraryTask;
 import com.streamsets.datacollector.store.PipelineStoreTask;
 import com.streamsets.datacollector.util.ContainerError;
+import com.streamsets.datacollector.util.PipelineConfigurationUtil;
 import com.streamsets.datacollector.validation.Issue;
 import com.streamsets.datacollector.validation.IssueCreator;
 import com.streamsets.datacollector.validation.PipelineConfigurationValidator;
@@ -57,14 +59,26 @@ public class PipelineConfigurationUpgrader {
   protected PipelineConfigurationUpgrader() {
   }
 
-  public PipelineConfiguration upgradeIfNecessary(StageLibraryTask library, PipelineConfiguration pipelineConf, List<Issue> issues) {
-    Preconditions.checkArgument(issues.size() == 0, "Given list of issues must be empty.");
+  /**
+   * Upgrade whole pipeline at once and return updated variant.
+   *
+   * @param library Stage Library
+   * @param pipelineConf Existing Pipeline Configuration
+   * @param issues Issues
+   * @return Upgraded pipeline configuration or null on any error
+   */
+  public PipelineConfiguration upgradeIfNecessary(
+      StageLibraryTask library,
+      PipelineConfiguration pipelineConf,
+      List<Issue> issues
+  ) {
+    Preconditions.checkArgument(issues.isEmpty(), "Given list of issues must be empty.");
     boolean upgrade;
 
     // Firstly upgrading schema if needed, then data
     upgrade = needsSchemaUpgrade(pipelineConf, issues);
     if(upgrade && issues.isEmpty()) {
-      pipelineConf = upgradeSchema(pipelineConf, issues);
+      pipelineConf = upgradeSchema(library, pipelineConf, issues);
     }
 
     // Something went wrong with the schema upgrade
@@ -81,11 +95,34 @@ public class PipelineConfigurationUpgrader {
     return (issues.isEmpty()) ? pipelineConf : null;
   }
 
+  /**
+   * Upgrade detached stage (stage not associated directly with the pipeline).
+   *
+   * @param libraryTask Stage Library
+   * @param stageConf Existing stage configuration
+   * @param issues Issues
+   * @return Upgraded stage configuration or null on any error
+   */
+  public StageConfiguration upgradeIfNecessary(StageLibraryTask libraryTask, StageConfiguration stageConf, List<Issue> issues) {
+    Preconditions.checkArgument(issues.isEmpty(), "Given list of issues must be empty.");
+    boolean upgrade = needsUpgrade(libraryTask, stageConf, issues);
+
+    if(upgrade) {
+      stageConf = upgradeIfNeeded(libraryTask, stageConf, issues);
+    }
+
+    return issues.isEmpty() ? stageConf : null;
+  }
+
   private boolean needsSchemaUpgrade(PipelineConfiguration pipelineConf, List<Issue> ownIssues) {
     return pipelineConf.getSchemaVersion() != PipelineStoreTask.SCHEMA_VERSION;
   }
 
-  private PipelineConfiguration upgradeSchema(PipelineConfiguration pipelineConf, List<Issue> issues) {
+  private PipelineConfiguration upgradeSchema(
+      StageLibraryTask library,
+      PipelineConfiguration pipelineConf,
+      List<Issue> issues
+  ) {
     LOG.debug("Upgrading schema from version {} on pipeline {}", pipelineConf.getSchemaVersion(), pipelineConf.getUuid());
     switch (pipelineConf.getSchemaVersion()) {
       case 1:
@@ -99,6 +136,9 @@ public class PipelineConfigurationUpgrader {
         // fall through
       case 4:
         upgradeSchema4to5(pipelineConf, issues);
+        // fall through
+      case 5:
+        upgradeSchema5to6(library, pipelineConf, issues);
         break;
       default:
         issues.add(IssueCreator.getPipeline().create(ValidationError.VALIDATION_0000, pipelineConf.getSchemaVersion()));
@@ -195,6 +235,26 @@ public class PipelineConfigurationUpgrader {
                 Collections.emptyList()
             )
         );
+      }
+    }
+  }
+
+  private void upgradeSchema5to6(StageLibraryTask library, PipelineConfiguration pipelineConf, List<Issue> issues) {
+    // Added new attributes:
+    // * testOriginStage
+    if (pipelineConf.getErrorStage() == null) {
+      StageConfiguration testOriginStageInstance = PipelineConfigurationUtil.getStageConfigurationWithDefaultValues(
+          library,
+          PipelineConfigBean.DEFAULT_TEST_ORIGIN_LIBRARY_NAME,
+          PipelineConfigBean.DEFAULT_TEST_ORIGIN_STAGE_NAME,
+          PipelineConfigBean.DEFAULT_TEST_ORIGIN_STAGE_NAME + "_TestOriginStage",
+          "Test Origin - "
+      );
+      if (testOriginStageInstance != null) {
+        testOriginStageInstance.setOutputLanes(
+            ImmutableList.of(testOriginStageInstance.getInstanceName() + "OutputLane1")
+        );
+        pipelineConf.setTestOriginStage(testOriginStageInstance);
       }
     }
   }

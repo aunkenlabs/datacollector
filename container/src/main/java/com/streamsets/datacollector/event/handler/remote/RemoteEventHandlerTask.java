@@ -29,6 +29,9 @@ import com.streamsets.datacollector.event.client.api.EventClient;
 import com.streamsets.datacollector.event.client.api.EventException;
 import com.streamsets.datacollector.event.dto.AckEvent;
 import com.streamsets.datacollector.event.dto.AckEventStatus;
+import com.streamsets.datacollector.event.dto.BlobDeleteEvent;
+import com.streamsets.datacollector.event.dto.BlobDeleteVersionEvent;
+import com.streamsets.datacollector.event.dto.BlobStoreEvent;
 import com.streamsets.datacollector.event.dto.ClientEvent;
 import com.streamsets.datacollector.event.dto.DisconnectedSsoCredentialsEvent;
 import com.streamsets.datacollector.event.dto.Event;
@@ -37,11 +40,14 @@ import com.streamsets.datacollector.event.dto.PingFrequencyAdjustmentEvent;
 import com.streamsets.datacollector.event.dto.PipelineBaseEvent;
 import com.streamsets.datacollector.event.dto.PipelineSaveEvent;
 import com.streamsets.datacollector.event.dto.PipelineSaveRulesEvent;
+import com.streamsets.datacollector.event.dto.PipelineStartEvent;
 import com.streamsets.datacollector.event.dto.PipelineStatusEvent;
 import com.streamsets.datacollector.event.dto.PipelineStatusEvents;
 import com.streamsets.datacollector.event.dto.PipelineStopAndDeleteEvent;
 import com.streamsets.datacollector.event.dto.SDCBuildInfo;
 import com.streamsets.datacollector.event.dto.SDCInfoEvent;
+import com.streamsets.datacollector.event.dto.SDCProcessMetricsEvent;
+import com.streamsets.datacollector.event.dto.SaveConfigurationEvent;
 import com.streamsets.datacollector.event.dto.ServerEvent;
 import com.streamsets.datacollector.event.dto.StageInfo;
 import com.streamsets.datacollector.event.dto.SyncAclEvent;
@@ -49,6 +55,8 @@ import com.streamsets.datacollector.event.handler.DataCollector;
 import com.streamsets.datacollector.event.handler.EventHandlerTask;
 import com.streamsets.datacollector.event.json.ClientEventJson;
 import com.streamsets.datacollector.event.json.ServerEventJson;
+import com.streamsets.datacollector.execution.Runner;
+import com.streamsets.datacollector.execution.StartPipelineContextBuilder;
 import com.streamsets.datacollector.io.DataStore;
 import com.streamsets.datacollector.json.ObjectMapperFactory;
 import com.streamsets.datacollector.main.BuildInfo;
@@ -64,18 +72,18 @@ import com.streamsets.datacollector.stagelibrary.StageLibraryTask;
 import com.streamsets.datacollector.task.AbstractTask;
 import com.streamsets.datacollector.util.Configuration;
 import com.streamsets.datacollector.util.DisconnectedSecurityUtils;
-import com.streamsets.datacollector.util.PipelineException;
 import com.streamsets.lib.security.http.AbstractSSOService;
 import com.streamsets.lib.security.http.DisconnectedSSOManager;
-import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.impl.Utils;
 import com.streamsets.pipeline.lib.executor.SafeScheduledExecutorService;
+import com.sun.management.OperatingSystemMXBean;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -103,6 +111,8 @@ public class RemoteEventHandlerTask extends AbstractTask implements EventHandler
   private static final String DEFAULT_REMOTE_JOB_LABELS = "all";
   private static final String REMOTE_CONTROL_EVENTS_RECIPIENT = REMOTE_CONTROL + "events.recipient";
   private static final String DEFAULT_REMOTE_CONTROL_EVENTS_RECIPIENT = "jobrunner-app";
+  private static final String REMOTE_CONTROL_PROCESS_EVENTS_RECIPIENTS = REMOTE_CONTROL + "process.events.recipients";
+  private static final String DEFAULT_REMOTE_CONTROL_PROCESS_EVENTS_RECIPIENTS = "jobrunner-app,timeseries-app";
   public static final String OFFSET = "offset";
   public static final int OFFSET_PROTOCOL_VERSION = 2;
 
@@ -114,6 +124,7 @@ public class RemoteEventHandlerTask extends AbstractTask implements EventHandler
   private final StageLibraryTask stageLibrary;
   private final RuntimeInfo runtimeInfo;
   private final List<String> appDestinationList;
+  private final List<String> processAppDestinationList;
   private final List<String> labelList;
   private final Map<String, String> requestHeader;
   private final long defaultPingFrequency;
@@ -122,13 +133,14 @@ public class RemoteEventHandlerTask extends AbstractTask implements EventHandler
   private final DataStore dataStore;
 
 
-  public RemoteEventHandlerTask(RemoteDataCollector remoteDataCollector,
-    EventClient eventSenderReceiver,
-    SafeScheduledExecutorService executorService,
-    StageLibraryTask stageLibrary,
-    RuntimeInfo runtimeInfo,
-    Configuration conf
-    ) {
+  public RemoteEventHandlerTask(
+      RemoteDataCollector remoteDataCollector,
+      EventClient eventSenderReceiver,
+      SafeScheduledExecutorService executorService,
+      StageLibraryTask stageLibrary,
+      RuntimeInfo runtimeInfo,
+      Configuration conf
+  ) {
     super("REMOTE_EVENT_HANDLER");
     this.remoteDataCollector = remoteDataCollector;
     this.jsonToFromDto = MessagingJsonToFromDto.INSTANCE;
@@ -140,6 +152,11 @@ public class RemoteEventHandlerTask extends AbstractTask implements EventHandler
         REMOTE_CONTROL_EVENTS_RECIPIENT,
         DEFAULT_REMOTE_CONTROL_EVENTS_RECIPIENT
     ));
+    String processAppsDest = conf.get(
+        REMOTE_CONTROL_PROCESS_EVENTS_RECIPIENTS,
+        DEFAULT_REMOTE_CONTROL_PROCESS_EVENTS_RECIPIENTS
+    );
+    processAppDestinationList = Lists.newArrayList(Splitter.on(",").omitEmptyStrings().split(processAppsDest));
     String labels = conf.get(REMOTE_JOB_LABELS, DEFAULT_REMOTE_JOB_LABELS);
     labelList = Lists.newArrayList(Splitter.on(",").omitEmptyStrings().split(labels));
     defaultPingFrequency = Math.max(conf.get(REMOTE_URL_PING_INTERVAL, DEFAULT_PING_FREQUENCY),
@@ -190,11 +207,13 @@ public class RemoteEventHandlerTask extends AbstractTask implements EventHandler
         executorService,
         defaultPingFrequency,
         appDestinationList,
+        processAppDestinationList,
         requestHeader,
         stopWatch,
         sendAllStatusEventsInterval,
         dataStore,
-        new LinkedHashMap<>()
+        new LinkedHashMap<>(),
+        runtimeInfo
     ));
   }
 
@@ -204,7 +223,9 @@ public class RemoteEventHandlerTask extends AbstractTask implements EventHandler
       stageInfoList.add(new StageInfo(stageDef.getName(), stageDef.getVersion(), stageDef.getLibrary()));
     }
     BuildInfo buildInfo = new DataCollectorBuildInfo();
-    SDCInfoEvent sdcInfoEvent = new SDCInfoEvent(runtimeInfo.getId(),
+    Runtime runtime = Runtime.getRuntime();
+    SDCInfoEvent sdcInfoEvent = new SDCInfoEvent(
+        runtimeInfo.getId(),
         runtimeInfo.getBaseHttpUrl(),
         System.getProperty("java.runtime.version"),
         stageInfoList,
@@ -216,9 +237,18 @@ public class RemoteEventHandlerTask extends AbstractTask implements EventHandler
         ),
         labelList,
         OFFSET_PROTOCOL_VERSION,
-        Strings.emptyToNull(runtimeInfo.getDeploymentId())
+        Strings.emptyToNull(runtimeInfo.getDeploymentId()),
+        runtime.totalMemory()
     );
-    return new ClientEvent(UUID.randomUUID().toString(), appDestinationList, false, false, EventType.SDC_INFO_EVENT, sdcInfoEvent, null);
+    return new ClientEvent(
+        UUID.randomUUID().toString(),
+        appDestinationList,
+        false,
+        false,
+        EventType.SDC_INFO_EVENT,
+        sdcInfoEvent,
+        null
+    );
   }
 
   @Override
@@ -234,6 +264,7 @@ public class RemoteEventHandlerTask extends AbstractTask implements EventHandler
     private final SafeScheduledExecutorService executorService;
     private final Map<String, String> requestHeader;
     private final List<String> jobEventDestinationList;
+    private final List<String> processAppDestinationList;
     private final Stopwatch stopWatch;
     private final long waitBetweenSendingStatusEvents;
     private final DataStore disconnectedCredentialsDataStore;
@@ -242,6 +273,7 @@ public class RemoteEventHandlerTask extends AbstractTask implements EventHandler
     private ClientEvent sdcInfoEvent;
     private long delay;
     private Map<ServerEvent, Future<AckEvent>> eventToAckEventFuture;
+    private RuntimeInfo runtimeInfo;
 
     public EventHandlerCallable(
         DataCollector remoteDataCollector,
@@ -253,19 +285,21 @@ public class RemoteEventHandlerTask extends AbstractTask implements EventHandler
         SafeScheduledExecutorService executorService,
         long delay,
         List<String> jobEventDestinationList,
+        List<String> processAppDestinationList,
         Map<String, String> requestHeader,
         Stopwatch stopWatch,
         long waitBetweenSendingStatusEvents,
         DataStore disconnectedCredentialsDataStore,
-        Map<ServerEvent, Future<AckEvent>> eventToAckEventFuture
-
-        ) {
+        Map<ServerEvent, Future<AckEvent>> eventToAckEventFuture,
+        RuntimeInfo runtimeInfo
+    ) {
       this.remoteDataCollector = remoteDataCollector;
       this.eventClient = eventSenderReceiver;
       this.jsonToFromDto = jsonToFromDto;
       this.executorService = executorService;
       this.delay = delay;
       this.jobEventDestinationList = jobEventDestinationList;
+      this.processAppDestinationList = processAppDestinationList;
       this.ackEventList = ackEventList;
       this.remoteEventList = remoteEventList;
       this.sdcInfoEvent = sdcInfoEvent;
@@ -274,6 +308,7 @@ public class RemoteEventHandlerTask extends AbstractTask implements EventHandler
       this.waitBetweenSendingStatusEvents = waitBetweenSendingStatusEvents;
       this.disconnectedCredentialsDataStore = disconnectedCredentialsDataStore;
       this.eventToAckEventFuture = eventToAckEventFuture;
+      this.runtimeInfo = runtimeInfo;
     }
 
     @Override
@@ -294,11 +329,13 @@ public class RemoteEventHandlerTask extends AbstractTask implements EventHandler
             executorService,
             delay,
             jobEventDestinationList,
+            processAppDestinationList,
             requestHeader,
             stopWatch,
             waitBetweenSendingStatusEvents,
             disconnectedCredentialsDataStore,
-            eventToAckEventFuture
+            eventToAckEventFuture,
+            runtimeInfo
         ), delay, TimeUnit.MILLISECONDS);
       }
       return null;
@@ -310,7 +347,7 @@ public class RemoteEventHandlerTask extends AbstractTask implements EventHandler
     }
 
     @VisibleForTesting
-    List<ClientEvent> getAckEventList(){
+    List<ClientEvent> getAckEventList() {
       return ackEventList;
     }
 
@@ -340,7 +377,7 @@ public class RemoteEventHandlerTask extends AbstractTask implements EventHandler
     @VisibleForTesting
     void callRemoteControl() {
       List<ClientEvent> clientEventList = new ArrayList<>();
-      for (ClientEvent ackEvent: ackEventList) {
+      for (ClientEvent ackEvent : ackEventList) {
         clientEventList.add(ackEvent);
       }
       clientEventList.addAll(getQueuedAckEvents());
@@ -358,16 +395,28 @@ public class RemoteEventHandlerTask extends AbstractTask implements EventHandler
           stopWatch.reset();
           PipelineStatusEvents pipelineStatusEvents = new PipelineStatusEvents();
           pipelineStatusEvents.setPipelineStatusEventList(pipelineStatusEventList);
-          clientEventList.add(new ClientEvent(UUID.randomUUID().toString(),
-              jobEventDestinationList,
-              false,
-              false,
-              EventType.STATUS_MULTIPLE_PIPELINES,
-              pipelineStatusEvents,
-              null
-          ));
+          clientEventList.add(new ClientEvent
+              (UUID.randomUUID().toString(),
+                  jobEventDestinationList,
+                  false,
+                  false,
+                  EventType.STATUS_MULTIPLE_PIPELINES,
+                  pipelineStatusEvents,
+                  null
+              ));
           // Clear this state change list as we are fetching all events
           remoteEventList.clear();
+
+          // Add SDC Metrics Event
+          clientEventList.add(new ClientEvent(
+              UUID.randomUUID().toString(),
+              processAppDestinationList,
+              false,
+              false,
+              EventType.SDC_PROCESS_METRICS_EVENT,
+              getSdcMetricsEvent(),
+              null
+          ));
         } else {
           // get state of only remote pipelines which changed state
           List<PipelineAndValidationStatus> pipelineAndValidationStatuses = remoteDataCollector
@@ -395,13 +444,13 @@ public class RemoteEventHandlerTask extends AbstractTask implements EventHandler
       List<ServerEventJson> serverEventJsonList;
       try {
         List<ClientEventJson> clientEventJsonList = jsonToFromDto.toJson(clientEventList);
-        serverEventJsonList  = eventClient.submit("", new HashMap<>(), requestHeader, false, clientEventJsonList);
+        serverEventJsonList = eventClient.submit("", new HashMap<>(), requestHeader, false, clientEventJsonList);
         remoteEventList.clear();
         if (!eventToAckEventFuture.isEmpty()) {
           Set<String> eventIds = clientEventList.stream().map(ClientEvent::getEventId).collect(Collectors.toSet());
           Set<ServerEvent> eventsAlreadyAcked = eventToAckEventFuture.keySet().stream().filter(serverEvent ->
               eventIds.contains(
-              serverEvent.getEventId())).collect(Collectors.toSet());
+                  serverEvent.getEventId())).collect(Collectors.toSet());
           LOG.info("Removing already acked events {}", eventsAlreadyAcked);
           eventToAckEventFuture.keySet().removeAll(eventsAlreadyAcked);
         }
@@ -421,6 +470,17 @@ public class RemoteEventHandlerTask extends AbstractTask implements EventHandler
       }
       ackEventList = ackClientEventList;
       sdcInfoEvent = null;
+    }
+
+    private SDCProcessMetricsEvent getSdcMetricsEvent() {
+      OperatingSystemMXBean osBean = ManagementFactory.getPlatformMXBean(OperatingSystemMXBean.class);
+      Runtime runtime = Runtime.getRuntime();
+      SDCProcessMetricsEvent sdcProcessMetricsEvent = new SDCProcessMetricsEvent();
+      sdcProcessMetricsEvent.setTimestamp(System.currentTimeMillis());
+      sdcProcessMetricsEvent.setSdcId(runtimeInfo.getId());
+      sdcProcessMetricsEvent.setCpuLoad(osBean.getProcessCpuLoad() * 100);
+      sdcProcessMetricsEvent.setUsedMemory(runtime.totalMemory() - runtime.freeMemory());
+      return sdcProcessMetricsEvent;
     }
 
     private String handleServerEvent(ServerEvent serverEvent) {
@@ -474,9 +534,12 @@ public class RemoteEventHandlerTask extends AbstractTask implements EventHandler
             break;
           }
           case START_PIPELINE:
-            PipelineBaseEvent pipelineStartEvent = (PipelineBaseEvent) event;
+            PipelineStartEvent pipelineStartEvent = (PipelineStartEvent) event;
+            Runner.StartPipelineContext startPipelineContext = new StartPipelineContextBuilder(pipelineStartEvent.getUser())
+                .withInterceptorConfigurations(pipelineStartEvent.getInterceptorConfiguration())
+                .build();
             remoteDataCollector.start(
-                pipelineStartEvent.getUser(),
+                startPipelineContext,
                 pipelineStartEvent.getName(),
                 pipelineStartEvent.getRev()
             );
@@ -523,6 +586,34 @@ public class RemoteEventHandlerTask extends AbstractTask implements EventHandler
                 pipelineStopDeleteEvent.getForceTimeoutMillis()
             ));
             break;
+          case BLOB_STORE:
+            BlobStoreEvent blobStoreEvent = (BlobStoreEvent) event;
+            remoteDataCollector.blobStore(
+                blobStoreEvent.getNamespace(),
+                blobStoreEvent.getId(),
+                blobStoreEvent.getVersion(),
+                blobStoreEvent.getContent()
+            );
+            break;
+          case BLOB_DELETE:
+            BlobDeleteEvent blobDeleteEvent = (BlobDeleteEvent) event;
+            remoteDataCollector.blobDelete(
+                blobDeleteEvent.getNamespace(),
+                blobDeleteEvent.getId()
+            );
+            break;
+          case BLOB_DELETE_VERSION:
+            BlobDeleteVersionEvent blobDeleteVersionEvent = (BlobDeleteVersionEvent) event;
+            remoteDataCollector.blobDelete(
+                blobDeleteVersionEvent.getNamespace(),
+                blobDeleteVersionEvent.getId(),
+                blobDeleteVersionEvent.getVersion()
+            );
+            break;
+          case SAVE_CONFIGURATION:
+            SaveConfigurationEvent saveConfigurationEvent = (SaveConfigurationEvent)event;
+            remoteDataCollector.storeConfiguration(saveConfigurationEvent.getConfiguration());
+            break;
           case SYNC_ACL:
             remoteDataCollector.syncAcl(((SyncAclEvent) event).getAcl());
             break;
@@ -555,7 +646,7 @@ public class RemoteEventHandlerTask extends AbstractTask implements EventHandler
         // If the offset protocol version is less than 2, convert it to a structure similar to offset.json
         sourceOffset = new SourceOffset();
         sourceOffset.setOffset(offset);
-      } else if (null == offset ) {
+      } else if (null == offset) {
         // First run when offset is null
         sourceOffset = new SourceOffset(
             SourceOffset.CURRENT_VERSION,
@@ -630,13 +721,13 @@ public class RemoteEventHandlerTask extends AbstractTask implements EventHandler
         }
       } catch (IOException ex) {
         ackEventStatus = AckEventStatus.ERROR;
-        if(serverEvent == null) {
+        if (serverEvent == null) {
           ackEventMessage = Utils.format("Can't parse event JSON", serverEventJson);
         } else {
           ackEventMessage = Utils.format(
-            "Remote event type: '{}' encountered exception while being deserialized '{}'",
-            serverEvent,
-            ex.getMessage()
+              "Remote event type: '{}' encountered exception while being deserialized '{}'",
+              serverEvent,
+              ex.getMessage()
           );
         }
         LOG.warn(ackEventMessage, ex);
@@ -644,7 +735,7 @@ public class RemoteEventHandlerTask extends AbstractTask implements EventHandler
       if (serverEventJson.isRequiresAck()) {
         AckEvent ackEvent = new AckEvent(ackEventStatus, ackEventMessage);
         return new ClientEvent(serverEventJson.getEventId(), jobEventDestinationList, false, true, EventType.ACK_EVENT,
-          ackEvent, null);
+            ackEvent, null);
       } else {
         return null;
       }

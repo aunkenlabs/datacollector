@@ -28,14 +28,14 @@ import com.streamsets.pipeline.api.base.configurablestage.DTarget;
     label = "Redis",
     description = "Writes data to Redis",
     icon = "redis.png",
-    onlineHelpRefUrl ="index.html#datacollector/UserGuide/Destinations/Redis.html#task_mzk_lw2_gw"
+    onlineHelpRefUrl ="index.html?contextID=task_mzk_lw2_gw"
 )
 
 @ConfigGroups(Groups.class)
 @GenerateResourceBundle
 public class RedisDTarget extends DTarget {
 
-  @ConfigDefBean(groups = {"REDIS"})
+  @ConfigDefBean
   public RedisTargetConfig conf;
 
   @Override

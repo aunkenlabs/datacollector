@@ -17,6 +17,7 @@ package com.streamsets.pipeline.stage.origin.jdbc.cdc.oracle;
 
 import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.ConfigDefBean;
+import com.streamsets.pipeline.api.Dependency;
 import com.streamsets.pipeline.api.ValueChooserModel;
 import com.streamsets.pipeline.config.TimeZoneChooserValues;
 import com.streamsets.pipeline.lib.el.TimeEL;
@@ -189,18 +190,6 @@ public class OracleCDCConfigBean {
   @ConfigDef(
       required = true,
       type = ConfigDef.Type.NUMBER,
-      label = "Query Timeout",
-      description = "Time to wait before timing out a LogMiner query and returning the batch.",
-      displayPosition = 140,
-      group = "CDC",
-      elDefs = TimeEL.class,
-      defaultValue = "${5 * MINUTES}"
-  )
-  public int queryTimeout;
-
-  @ConfigDef(
-      required = true,
-      type = ConfigDef.Type.NUMBER,
       label = "JDBC Fetch Size",
       description = "To reduce latency, set this lower if the write rate to the tables is low.",
       displayPosition = 145,
@@ -214,8 +203,8 @@ public class OracleCDCConfigBean {
       required = true,
       type = ConfigDef.Type.BOOLEAN,
       label = "Parse SQL Query",
-      description = "Parse the SQL Query read from LogMiner into an SDC record. If set to false, the unparsed sql " +
-          "query is inserted into the /sql field",
+      description = "Parse the SQL Query read from LogMiner into an SDC record. If unselected, the unparsed sql " +
+          "statement is inserted into the /sql field",
       displayPosition = 150,
       group = "CDC",
       defaultValue = "true"
@@ -236,13 +225,33 @@ public class OracleCDCConfigBean {
   @ConfigDef(
       required = true,
       type = ConfigDef.Type.BOOLEAN,
-      label = "Use PEG-based SQL parser (experimental)",
-      description = "Use the new experimental SQL Parser, which may improve parsing performance",
-      displayPosition = 170,
+      label = "Use PEG Parser (beta)",
+      description = "Optionally use the alternate parser to enhance performance",
+      displayPosition = 5, // display at the top of the advanced tab
       group = "ADVANCED",
+      dependsOn = "parseQuery",
+      triggeredByValue = "true",
       defaultValue = "false"
   )
   public boolean useNewParser;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.NUMBER,
+      label = "Parsing Thread Pool Size",
+      description = "Number of threads to use to parse",
+      displayPosition = 6,
+      group = "ADVANCED",
+      dependencies = {
+          @Dependency(configName = "parseQuery", triggeredByValues = "true"),
+          @Dependency(configName = "bufferLocally", triggeredByValues = "true")
+          // during non-local buffering we receive committed transactions in the order that oracle chooses,
+          // so we can't parallelize it
+      },
+      defaultValue = "1",
+      min = 1
+  )
+  public int parseThreadPoolSize;
 
   @ConfigDef(
       required = true,

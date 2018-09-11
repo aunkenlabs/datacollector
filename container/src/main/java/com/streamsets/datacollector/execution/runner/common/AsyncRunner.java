@@ -15,9 +15,9 @@
  */
 package com.streamsets.datacollector.execution.runner.common;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.streamsets.datacollector.callback.CallbackInfo;
 import com.streamsets.datacollector.callback.CallbackObjectType;
+import com.streamsets.datacollector.config.PipelineConfiguration;
 import com.streamsets.datacollector.execution.PipelineInfo;
 import com.streamsets.datacollector.execution.PipelineState;
 import com.streamsets.datacollector.execution.Runner;
@@ -72,6 +72,11 @@ public class AsyncRunner implements Runner, PipelineInfo {
   @Override
   public String getPipelineTitle() throws PipelineException {
     return runner.getPipelineTitle();
+  }
+
+  @Override
+  public PipelineConfiguration getPipelineConfiguration() throws PipelineException {
+    return runner.getPipelineConfiguration();
   }
 
   @Override
@@ -133,23 +138,17 @@ public class AsyncRunner implements Runner, PipelineInfo {
   }
 
   @Override
-  public void prepareForStart(String user, Map<String, Object> attributes) throws PipelineStoreException, PipelineRunnerException {
+  public void prepareForStart(StartPipelineContext context) throws PipelineStoreException, PipelineRunnerException {
     throw new UnsupportedOperationException("This method is not supported for AsyncRunner. Call start() instead.");
   }
 
   @Override
-  public void start(String user) throws PipelineException, StageException {
-    start(user, null);
-  }
-
-  @Override
   public synchronized void start(
-      String user,
-      Map<String, Object> runtimeParameters
+    StartPipelineContext context
   ) throws PipelineException, StageException {
-    runner.prepareForStart(user, runtimeParameters);
+    runner.prepareForStart(context);
     Callable<Object> callable = () -> {
-       runner.start(user, runtimeParameters);
+       runner.start(context);
        return null;
     };
     runnerExecutor.submit(callable);
@@ -157,8 +156,7 @@ public class AsyncRunner implements Runner, PipelineInfo {
 
   @Override
   public void startAndCaptureSnapshot(
-      String user,
-      Map<String, Object> runtimeParameters,
+      StartPipelineContext context,
       String snapshotName,
       String snapshotLabel,
       int batches,
@@ -167,9 +165,9 @@ public class AsyncRunner implements Runner, PipelineInfo {
     if(batchSize <= 0) {
       throw new PipelineRunnerException(ContainerError.CONTAINER_0107, batchSize);
     }
-    runner.prepareForStart(user, runtimeParameters);
+    runner.prepareForStart(context);
     Callable<Object> callable = () -> {
-      runner.startAndCaptureSnapshot(user, runtimeParameters, snapshotName, snapshotLabel, batches, batchSize);
+      runner.startAndCaptureSnapshot(context, snapshotName, snapshotLabel, batches, batchSize);
       return null;
     };
     runnerExecutor.submit(callable);
@@ -253,6 +251,11 @@ public class AsyncRunner implements Runner, PipelineInfo {
   }
 
   @Override
+  public Map<String, Object> createStateAttributes() throws PipelineStoreException {
+    return runner.createStateAttributes();
+  }
+
+  @Override
   public Pipeline getPipeline() {
     if (runner instanceof PipelineInfo) {
       return ((PipelineInfo) runner).getPipeline();
@@ -260,11 +263,6 @@ public class AsyncRunner implements Runner, PipelineInfo {
       throw new UnsupportedOperationException(Utils.format("Runner '{}' does not support retrieval of  pipeline",
         runner.getClass().getName()));
     }
-  }
-
-  @VisibleForTesting
-  public Runner getRunner() {
-    return runner;
   }
 
   @Override
@@ -291,4 +289,10 @@ public class AsyncRunner implements Runner, PipelineInfo {
   public void prepareForStop(String user) {
     throw new UnsupportedOperationException("This method is not supported for AsyncRunner. Call stop() instead.");
   }
+
+  @Override
+  public Runner getDelegatingRunner() {
+    return runner;
+  }
+
 }

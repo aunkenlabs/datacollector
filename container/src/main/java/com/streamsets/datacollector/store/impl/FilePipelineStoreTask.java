@@ -18,9 +18,6 @@ package com.streamsets.datacollector.store.impl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
-import com.streamsets.datacollector.config.DataRuleDefinition;
-import com.streamsets.datacollector.config.DriftRuleDefinition;
-import com.streamsets.datacollector.config.MetricsRuleDefinition;
 import com.streamsets.datacollector.config.PipelineConfiguration;
 import com.streamsets.datacollector.config.PipelineFragmentConfiguration;
 import com.streamsets.datacollector.config.RuleDefinitions;
@@ -54,6 +51,7 @@ import com.streamsets.datacollector.task.AbstractTask;
 import com.streamsets.datacollector.util.ContainerError;
 import com.streamsets.datacollector.util.LockCache;
 import com.streamsets.datacollector.util.LogUtil;
+import com.streamsets.datacollector.util.PipelineConfigurationUtil;
 import com.streamsets.datacollector.util.PipelineDirectoryUtil;
 import com.streamsets.datacollector.util.PipelineException;
 import com.streamsets.datacollector.validation.Issue;
@@ -88,9 +86,9 @@ public class FilePipelineStoreTask extends AbstractTask implements PipelineStore
   static final String REV = "0";
   public static final String INFO_FILE = "info.json";
   public static final String PIPELINE_FILE = "pipeline.json";
-  public static final String UI_INFO_FILE = "uiinfo.json";
+  private static final String UI_INFO_FILE = "uiinfo.json";
   public static final String RULES_FILE = "rules.json";
-  public static final String STATE = "state";
+  private static final String STATE = "state";
 
   private final StageLibraryTask stageLibrary;
   private final RuntimeInfo runtimeInfo;
@@ -150,7 +148,7 @@ public class FilePipelineStoreTask extends AbstractTask implements PipelineStore
   }
 
   @VisibleForTesting
-  Path getInfoFile(String name) {
+  private Path getInfoFile(String name) {
     return getPipelineDir(name).resolve(INFO_FILE);
   }
 
@@ -225,18 +223,20 @@ public class FilePipelineStoreTask extends AbstractTask implements PipelineStore
           pipelineTitle,
           description,
           stageLibrary.getPipeline().getPipelineDefaultConfigs(),
-          Collections.<String, Object>emptyMap(),
-          Collections.<StageConfiguration>emptyList(),
-          null,
+          Collections.emptyMap(),
           null,
           Collections.emptyList(),
-          Collections.emptyList()
+          null,
+          getDefaultStatsAggrStageInstance(),
+          Collections.emptyList(),
+          Collections.emptyList(),
+          getDefaultTestOriginStageInstance()
       );
 
       if (!draft) {
         try (
             OutputStream infoFile = Files.newOutputStream(getInfoFile(pipelineId));
-            OutputStream pipelineFile = Files.newOutputStream(getPipelineFile(pipelineId));
+            OutputStream pipelineFile = Files.newOutputStream(getPipelineFile(pipelineId))
         ){
           json.writeValue(infoFile, BeanHelper.wrapPipelineInfo(info));
           json.writeValue(pipelineFile, BeanHelper.wrapPipelineConfiguration(pipeline));
@@ -253,7 +253,7 @@ public class FilePipelineStoreTask extends AbstractTask implements PipelineStore
     }
   }
 
-  private boolean cleanUp(String name) throws PipelineStoreException {
+  private boolean cleanUp(String name) {
     boolean deleted = PipelineDirectoryUtil.deleteAll(getPipelineDir(name).toFile());
     deleted &= PipelineDirectoryUtil.deletePipelineDir(runtimeInfo, name);
     if(deleted) {
@@ -304,11 +304,7 @@ public class FilePipelineStoreTask extends AbstractTask implements PipelineStore
     }
   }
 
-  DirectoryStream.Filter<Path> filterHiddenFiles = new DirectoryStream.Filter<Path>() {
-    public boolean accept(Path path) throws IOException {
-      return !path.getFileName().toString().startsWith(".");
-    }
-  };
+  private DirectoryStream.Filter<Path> filterHiddenFiles = path -> !path.getFileName().toString().startsWith(".");
 
   @Override
   public List<PipelineInfo> getPipelines() throws PipelineStoreException {
@@ -337,12 +333,8 @@ public class FilePipelineStoreTask extends AbstractTask implements PipelineStore
 
   @Override
   public PipelineInfo getInfo(String name) throws PipelineStoreException {
-    return getInfo(name, false);
-  }
-
-  private PipelineInfo getInfo(String name, boolean checkExistence) throws PipelineStoreException {
     synchronized (lockCache.getLock(name)) {
-      if (checkExistence && !hasPipeline(name)) {
+      if (!hasPipeline(name)) {
         throw new PipelineStoreException(ContainerError.CONTAINER_0200, name);
       }
       try (InputStream infoFile = Files.newInputStream(getInfoFile(name))) {
@@ -392,7 +384,7 @@ public class FilePipelineStoreTask extends AbstractTask implements PipelineStore
       );
       try (
           OutputStream infoFile = Files.newOutputStream(getInfoFile(name));
-          OutputStream pipelineFile = Files.newOutputStream(getPipelineFile(name));
+          OutputStream pipelineFile = Files.newOutputStream(getPipelineFile(name))
         ){
         pipeline.setUuid(uuid);
         json.writeValue(infoFile, BeanHelper.wrapPipelineInfo(info));
@@ -481,10 +473,10 @@ public class FilePipelineStoreTask extends AbstractTask implements PipelineStore
           ruleDefinitions = new RuleDefinitions(
               PipelineStoreTask.RULE_DEFINITIONS_SCHEMA_VERSION,
               RuleDefinitionsConfigBean.VERSION,
-              new ArrayList<MetricsRuleDefinition>(),
-              new ArrayList<DataRuleDefinition>(),
-              new ArrayList<DriftRuleDefinition>(),
-              new ArrayList<String>(),
+              new ArrayList<>(),
+              new ArrayList<>(),
+              new ArrayList<>(),
+              new ArrayList<>(),
               UUID.randomUUID(),
               stageLibrary.getPipelineRules().getPipelineRulesDefaultConfigs()
           );
@@ -540,11 +532,10 @@ public class FilePipelineStoreTask extends AbstractTask implements PipelineStore
   }
 
   @Override
-  public boolean deleteRules(String name) throws PipelineStoreException {
+  public boolean deleteRules(String name) {
     synchronized (lockCache.getLock(name)) {
       pipelineToRuleDefinitionMap.remove(getPipelineKey(name, REV));
-
-      if (hasPipeline(name) && getRulesFile(name) != null) {
+      if (hasPipeline(name)) {
         try {
           return Files.deleteIfExists(getRulesFile(name));
         } catch (IOException e) {
@@ -556,7 +547,7 @@ public class FilePipelineStoreTask extends AbstractTask implements PipelineStore
     }
   }
 
-  public String getPipelineKey(String pipelineName, String rev) {
+  private String getPipelineKey(String pipelineName, String rev) {
     return pipelineName + "$" + rev;
   }
 
@@ -608,7 +599,7 @@ public class FilePipelineStoreTask extends AbstractTask implements PipelineStore
 
       try (
           OutputStream infoFile = Files.newOutputStream(getInfoFile(name));
-          OutputStream pipelineFile = Files.newOutputStream(getPipelineFile(name));
+          OutputStream pipelineFile = Files.newOutputStream(getPipelineFile(name))
       ) {
         json.writeValue(infoFile, BeanHelper.wrapPipelineInfo(updatedInfo));
         json.writeValue(pipelineFile, BeanHelper.wrapPipelineConfiguration(savedPipeline));
@@ -620,7 +611,7 @@ public class FilePipelineStoreTask extends AbstractTask implements PipelineStore
   }
 
   @VisibleForTesting
-  public static Map<String, Object> extractUiInfo(PipelineConfiguration pipelineConf) {
+  static Map<String, Object> extractUiInfo(PipelineConfiguration pipelineConf) {
     Map<String, Object> map = new HashMap<>();
     map.put(":pipeline:", pipelineConf.getUiInfo());
     for (StageConfiguration stage : pipelineConf.getStages()) {
@@ -630,7 +621,7 @@ public class FilePipelineStoreTask extends AbstractTask implements PipelineStore
   }
 
   @SuppressWarnings("unchecked")
-  PipelineConfiguration injectUiInfo(Map<String, Map> uiInfo, PipelineConfiguration pipelineConf) {
+  private PipelineConfiguration injectUiInfo(Map<String, Map> uiInfo, PipelineConfiguration pipelineConf) {
     pipelineConf.getUiInfo().clear();
     if (uiInfo.containsKey(":pipeline:")) {
       pipelineConf.getUiInfo().clear();
@@ -687,7 +678,7 @@ public class FilePipelineStoreTask extends AbstractTask implements PipelineStore
       PipelineFragmentConfiguration pipelineFragmentConfiguration = new PipelineFragmentConfiguration(
           uuid,
           PipelineFragmentConfigBean.VERSION,
-          SCHEMA_VERSION,
+          FRAGMENT_SCHEMA_VERSION,
           pipelineTitle,
           pipelineId,
           pipelineId,
@@ -695,11 +686,38 @@ public class FilePipelineStoreTask extends AbstractTask implements PipelineStore
           Collections.emptyList(),
           Collections.emptyList(),
           Collections.emptyMap(),
-          stageLibrary.getPipelineFragment().getPipelineFragmentDefaultConfigs()
+          stageLibrary.getPipelineFragment().getPipelineFragmentDefaultConfigs(),
+          getDefaultTestOriginStageInstance()
       );
       pipelineFragmentConfiguration.setPipelineInfo(info);
       return pipelineFragmentConfiguration;
     }
+  }
+
+  private StageConfiguration getDefaultTestOriginStageInstance() {
+    StageConfiguration testOriginStageInstance = PipelineConfigurationUtil.getStageConfigurationWithDefaultValues(
+        stageLibrary,
+        PipelineConfigBean.DEFAULT_TEST_ORIGIN_LIBRARY_NAME,
+        PipelineConfigBean.DEFAULT_TEST_ORIGIN_STAGE_NAME,
+        PipelineConfigBean.DEFAULT_TEST_ORIGIN_STAGE_NAME + "_TestOriginStage",
+        "Test Origin - "
+    );
+    if (testOriginStageInstance != null) {
+      testOriginStageInstance.setOutputLanes(
+          ImmutableList.of(testOriginStageInstance.getInstanceName() + "OutputLane1")
+      );
+    }
+    return testOriginStageInstance;
+  }
+
+  private StageConfiguration getDefaultStatsAggrStageInstance() {
+    return PipelineConfigurationUtil.getStageConfigurationWithDefaultValues(
+        stageLibrary,
+        PipelineConfigBean.DEFAULT_STATS_AGGREGATOR_LIBRARY_NAME,
+        PipelineConfigBean.DEFAULT_STATS_AGGREGATOR_STAGE_NAME,
+         "statsAggregatorStageInstance",
+        "Stats Aggregator -"
+    );
   }
 
 }

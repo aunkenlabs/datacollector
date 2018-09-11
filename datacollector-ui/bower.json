@@ -1,16 +1,16 @@
 {
   "name": "data-collector-ui",
-  "version": "3.4.0-SNAPSHOT",
+  "version": "3.4.2",
   "dependencies": {
     "d3": "3.5.6",
     "jquery": "2.1.1",
     "bootstrap": "~3.3.1",
-    "angular": "1.6.8",
-    "angular-route": "1.6.8",
-    "angular-resource": "1.6.8",
-    "angular-cookies": "1.6.8",
-    "angular-i18n": "1.6.8",
-    "angular-sanitize": "1.6.8",
+    "angular": "1.6.10",
+    "angular-route": "1.6.10",
+    "angular-resource": "1.6.10",
+    "angular-cookies": "1.6.10",
+    "angular-i18n": "1.6.10",
+    "angular-sanitize": "1.6.10",
     "angular-translate": "2.15.2",
     "angular-translate-loader-static-files": "2.15.2",
     "angular-translate-storage-cookie": "2.15.2",
@@ -24,15 +24,15 @@
     "nvd3": "1.8.4",
     "angular-ui-select": "0.13.2",
     "ngstorage": "0.3.7",
-    "codemirror": "5.25.0",
+    "codemirror": "5.38.0",
     "angular-xeditable": "~0.1.9"
   },
   "devDependencies": {
-    "angular-mocks": "1.6.8",
-    "angular-scenario": "1.6.8"
+    "angular-mocks": "1.6.10",
+    "angular-scenario": "1.6.10"
   },
   "resolutions": {
-    "angular": "1.6.8",
+    "angular": "1.6.10",
     "d3": "3.5.6",
     "moment": "2.9.0"
   }
