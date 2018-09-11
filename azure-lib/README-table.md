@@ -15,7 +15,7 @@ This stage provides a Destination to write records to [Azure Table](https://azur
 
 ## Known Limitations
 
-1. The entire Record Content is serialized as `UTF-8` strings and saved into a `payload` field on the table. We do not support custom fields at this release.
+1. The entire Record Content is serialized as `UTF-8` strings and saved into a `BinaryPayload` field on the table. We do not support custom fields at this release.
 
 
 

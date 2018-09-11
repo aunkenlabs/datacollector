@@ -4,20 +4,20 @@ import com.microsoft.azure.storage.table.TableServiceEntity;
 
 public class TableEntity extends TableServiceEntity {
 
-  public TableEntity(String partitionKey, String rowKey, String payload) {
+  public TableEntity(String partitionKey, String rowKey, byte[] binaryPayload) {
     this.partitionKey = partitionKey;
     this.rowKey = rowKey;
-    this.payload = payload;
+    this.binaryPayload = binaryPayload;
   }
 
-  private String payload;
+  private byte[] binaryPayload;
 
-  public String getPayload() {
-    return payload;
+  public byte[] getBinaryPayload() {
+    return binaryPayload;
   }
 
-  public void setPayload(String payload) {
-    this.payload = payload;
+  public void setBinaryPayload(byte[] payload) {
+    this.binaryPayload = payload;
   }
 
 }
